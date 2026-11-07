@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code explorer</title>
+<link rel="stylesheet" href="site.css">
+<script src="site.js"></script>
+<style>
+  :root {
+    --none: #ecebe6;
+    /* Sequential ramps, low to high: orange for activity, blue for issues. Same OKLCH lightness per step. */
+    --heat-1: #f3c4b3; --heat-2: #e99d81; --heat-3: #dc744e; --heat-4: #c64c16; --heat-5: #9e3705; --heat-6: #752602;
+    --cool-1: #b7d3f6; --cool-2: #86b6ef; --cool-3: #5598e7; --cool-4: #2a78d6; --cool-5: #1c5cab; --cool-6: #104281;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --none: #262624;
+      /* On a dark page, low values are dim and high values bright. */
+      --heat-1: #892f03; --heat-2: #9e3705; --heat-3: #c64c16; --heat-4: #dc744e; --heat-5: #e99d81; --heat-6: #fad7cb;
+      --cool-1: #184f95; --cool-2: #1c5cab; --cool-3: #2a78d6; --cool-4: #5598e7; --cool-5: #86b6ef; --cool-6: #cde2fb;
+    }
+  }
+  :root[data-theme="dark"] {
+    --none: #262624;
+    /* On a dark page, low values are dim and high values bright. */
+    --heat-1: #892f03; --heat-2: #9e3705; --heat-3: #c64c16; --heat-4: #dc744e; --heat-5: #e99d81; --heat-6: #fad7cb;
+    --cool-1: #184f95; --cool-2: #1c5cab; --cool-3: #2a78d6; --cool-4: #5598e7; --cool-5: #86b6ef; --cool-6: #cde2fb;
+  }
+  html, body { height: 100%; }
+  body {
+    font-size: 14px;
+    display: grid; grid-template-rows: auto auto auto 1fr; grid-template-columns: 1fr 380px;
+  }
+  .toolbar {
+    grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+    padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface-1);
+  }
+  h1 { font-size: 17px; margin: 0 8px 0 0; }
+  label { color: var(--text-secondary); display: flex; gap: 6px; align-items: center; }
+  input[type=search], select {
+    font: inherit; color: inherit; background: var(--page);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px;
+  }
+  input[type=search] { width: 280px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--text-secondary); font-size: 13px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  nav { grid-column: 1; padding: 6px 16px; font-size: 13px; color: var(--text-secondary); }
+  nav button { all: unset; cursor: pointer; color: var(--accent); }
+  nav button:focus-visible { outline: 2px solid var(--accent); }
+  #stage { grid-column: 1; position: relative; overflow: hidden; min-width: 0; margin: 0 0 16px 16px; }
+  .cell {
+    position: absolute; overflow: hidden; cursor: pointer; font-size: 12px; line-height: 16px;
+    padding: 0 4px; white-space: nowrap; text-overflow: ellipsis; color: #0b0b0b;
+  }
+  .cell.group { background: var(--surface-1); border: 1px solid var(--border); color: var(--text-primary); font-weight: 600; }
+  .cell:hover { outline: 2px solid var(--text-primary); outline-offset: -2px; }
+  .cell.selected { outline: 3px solid var(--accent); outline-offset: -3px; }
+  /* Raise files above their neighbours' edges; a directory stays below the files it contains. */
+  .cell.leaf:hover, .cell.leaf.selected { z-index: 1; }
+  #tip {
+    position: absolute; pointer-events: none; max-width: 340px; padding: 6px 8px; font-size: 13px; z-index: 3;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); display: none; word-break: break-all;
+  }
+  #tip small, aside small { color: var(--text-secondary); }
+  aside { grid-column: 2; grid-row: 3 / 5; border-left: 1px solid var(--border); background: var(--surface-1); padding: 16px; overflow-y: auto; }
+  aside h2 { font-size: 15px; margin: 0 0 4px; word-break: break-all; }
+  aside h3 { margin: 16px 0 4px; }
+  aside h4 { font-size: 13px; margin: 10px 0 2px; }
+  aside ul { list-style: none; margin: 0; padding: 0; }
+  aside li { padding: 3px 0; border-bottom: 1px solid var(--grid); word-break: break-word; }
+  aside li button { all: unset; cursor: pointer; color: var(--accent); word-break: break-all; }
+  aside li button:hover, aside li button:focus-visible { text-decoration: underline; }
+  .stats { display: grid; grid-template-columns: auto 1fr; gap: 0 12px; font-variant-numeric: tabular-nums; margin: 8px 0 0; }
+  .stats dt { color: var(--text-secondary); }
+  .stats dd { margin: 0; }
+  .count { float: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; margin-left: 8px; }
+  .toolbar > a { font-size: 13px; }
+  .banner { margin-left: 12px; color: var(--text-primary); }
+  .banner button, aside .action { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .help { color: var(--text-secondary); }
+  @media (max-width: 800px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto auto auto 60vh auto; }
+    #stage { margin: 0 16px 16px; }
+    aside { grid-column: 1; grid-row: auto; border-left: 0; border-top: 1px solid var(--border); }
+    input[type=search] { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<header class="site">
+  <a class="home" href="index.html">Drupal core issues</a>
+  <a href="index.html">Where to help</a>
+  <span aria-current="page">Code explorer</span>
+  <a href="areas.html">Areas</a>
+  <a href="map.html">Issue map</a>
+  <a href="metrics.html">Issue metrics</a>
+  <span class="updated" id="updated"></span>
+</header>
+<div class="toolbar">
+  <h1 class="visually-hidden">Code explorer</h1>
+  <label>Find <input type="search" id="find" placeholder="File or directory path"></label>
+  <label>Size by
+    <select id="size">
+      <option value="loc">Lines</option>
+      <option value="churn">Churn</option>
+      <option value="open">Open issues</option>
+      <option value="files">Files</option>
+    </select>
+  </label>
+  <label>Colour by
+    <select id="colour">
+      <option value="churn">Churn</option>
+      <option value="churnDensity">Churn per 1,000 lines</option>
+      <option value="hotspot">Hotspot</option>
+      <option value="fixes">Bug fixes</option>
+      <option value="fixesDensity">Bug fixes per 1,000 lines</option>
+      <option value="open">Open issues</option>
+      <option value="openDensity">Open issues per 1,000 lines</option>
+    </select>
+  </label>
+  <div class="legend" id="legend"></div>
+</div>
+<nav id="crumbs" aria-label="Directory"></nav>
+<div id="stage"><div id="tip"></div></div>
+<aside id="panel">
+  <p class="help">Loading explorer.json…</p>
+</aside>
+<script src="https://cdn.jsdelivr.net/npm/d3-hierarchy@3.1.2/dist/d3-hierarchy.min.js"></script>
+<script>
+const SOURCES = {
+  component: ["By component", "The issue's component is this directory."],
+  "follow-up": ["Follow-ups", "A follow-up to an issue whose commits changed this."],
+  mentioned: ["Path mentioned", "The issue's text contains this path, sometimes only in a stack trace."],
+};
+const stage = document.getElementById("stage"), tip = document.getElementById("tip");
+const panel = document.getElementById("panel"), colourSelect = document.getElementById("colour");
+let D, byPath = new Map(), idOf = new Map(), current, selected, scale, selection = null;
+// Passes a set of issues between this page, the issue map and the start page.
+const SELECTION = "drupal-issue-selection";
+
+function index(node, parent) {
+  node.parent = parent;
+  node.path = parent ? `${parent.path}/${node.name}` : node.name;
+  byPath.set(node.path, node);
+  (node.children || []).forEach(c => index(c, node));
+  node.files = node.children ? node.children.reduce((s, c) => s + c.files, 0) : 1;
+  // D.paths is sorted, so everything inside a directory sits right after it: ids id to hi.
+  node.id = idOf.get(node.path);
+  node.hi = node.children ? Math.max(node.id, ...node.children.map(c => c.hi)) : node.id;
+}
+
+// Open and fixed issues that point at a node or anything inside it.
+function issuesOf(node) {
+  return Object.keys(D.links).filter(nid => D.links[nid].some(id => id >= node.id && id <= node.hi)).map(Number);
+}
+
+// Counts, for every node, how many issues of the selection point at it or at something inside it.
+function countSelection(nids) {
+  for (const n of byPath.values()) { n.sel = 0; n.last = null; }
+  for (const nid of nids) {
+    for (const id of D.links[nid] || []) {
+      for (let n = byPath.get(D.paths[id]); n && n.last !== nid; n = n.parent) { n.sel++; n.last = nid; }
+    }
+  }
+}
+
+const fmt = n => n.toLocaleString("en");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const METRICS = {
+  churn: { ramp: "heat", value: n => n.churn, label: () => `Commits in the last ${D.years.churn} years` },
+  churnDensity: { ramp: "heat", value: n => n.churn * 1000 / n.loc, label: () => `Commits in ${D.years.churn} years per 1,000 lines` },
+  hotspot: { ramp: "heat", value: n => n.hotspot, label: () => "Churn × lines (for a directory, its hottest file)" },
+  fixes: { ramp: "heat", value: n => n.fixes, label: () => `Bug-fix commits in the last ${D.years.history} years` },
+  fixesDensity: { ramp: "heat", value: n => n.fixes * 1000 / n.loc, label: () => `Bug-fix commits in ${D.years.history} years per 1,000 lines` },
+  sel: { ramp: "cool", value: n => n.sel || 0, label: () => `Issues from ${selection.label}` },
+  open: { ramp: "cool", value: n => n.open, label: () => "Open issues" },
+  openDensity: { ramp: "cool", value: n => n.open * 1000 / n.loc, label: () => "Open issues per 1,000 lines" },
+};
+const metric = node => METRICS[colourSelect.value].value(node);
+const sizeSelect = document.getElementById("size");
+const SIZES = { loc: "lines", churn: "recent commits", open: "open issues", files: "files" };
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const short = v => v.toLocaleString("en", { maximumFractionDigits: v < 10 ? 1 : 0 });
+
+// WCAG 2 relative luminance of a #rrggbb colour.
+function luminance(hex) {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+// Dark or light label text, whichever contrasts more with the fill.
+const ink = fill => {
+  const l = luminance(fill) + 0.05;
+  return l / (luminance("#0b0b0b") + 0.05) > (luminance("#f0efec") + 0.05) / l ? "#0b0b0b" : "#f0efec";
+};
+
+// Up to six bins over the non-zero values shown, cut so that each colour covers about the same area.
+// Counting rectangles instead would give the few large ones a single colour that fills the view.
+function makeScale(cells, ramp) {
+  const colours = [1, 2, 3, 4, 5, 6].map(i => css(`--${ramp}-${i}`));
+  const none = css("--none");
+  const shown = cells.filter(c => c.v > 0).sort((a, b) => a.v - b.v);
+  const total = shown.reduce((s, c) => s + c.a, 0);
+  const cuts = [];
+  let area = 0;
+  for (const c of shown) {
+    if (cuts.length < 5 && area >= total * (cuts.length + 1) / 6 && c.v > (cuts.at(-1) ?? shown[0].v)) cuts.push(c.v);
+    area += c.a;
+  }
+  // With fewer than six bins, spread them across the ramp so the ends stay light and dark.
+  const step = i => colours[cuts.length ? Math.round(i * 5 / cuts.length) : 5];
+  const bin = v => cuts.filter(c => v >= c).length;
+  const bins = [shown[0]?.v, ...cuts].filter(v => v !== undefined).map((lo, i) => {
+    const inBin = shown.filter(c => bin(c.v) === i);
+    return [lo, inBin.at(-1).v, step(i)];
+  });
+  const colour = v => v > 0 ? step(bin(v)) : none;
+  return { colour, ink: v => ink(colour(v)), none, bins };
+}
+
+function draw() {
+  stage.querySelectorAll(".cell, .empty").forEach(e => e.remove());
+  const { width, height } = stage.getBoundingClientRect();
+  const size = d => d[sizeSelect.value];
+  // Show the current directory's children, and the children of each subdirectory inside it.
+  const expanded = d => d === current || (d.parent === current && d.children);
+  // A directory's open issues can exceed the total of its parts: component issues belong to the
+  // directory alone. It then gets the difference as its own area, left blank around its parts.
+  const root = d3.hierarchy(current, d => expanded(d) ? d.children : null)
+    .sum(d => expanded(d) ? Math.max(0, size(d) - d.children.reduce((s, c) => s + size(c), 0)) : size(d))
+    .sort((a, b) => b.value - a.value);
+  if (!root.value) {
+    stage.insertAdjacentHTML("beforeend", `<p class="empty help">Nothing here has any ${SIZES[sizeSelect.value]}.</p>`);
+  }
+  // paddingOuter also sets the top, so it comes before paddingTop.
+  d3.treemap().size([width, height]).round(true).paddingInner(1)
+    .paddingOuter(n => n.depth === 1 ? 1 : 0).paddingTop(n => n.depth === 1 && n.children ? 18 : 0)(root);
+  const leaves = root.leaves();
+  scale = makeScale(leaves.map(l => ({ v: metric(l.data), a: (l.x1 - l.x0) * (l.y1 - l.y0) })),
+    METRICS[colourSelect.value].ramp);
+  const frag = document.createDocumentFragment();
+  for (const n of root.descendants().slice(1)) {
+    const w = n.x1 - n.x0, h = n.y1 - n.y0;
+    if (w < 1 || h < 1) continue;
+    const el = document.createElement("div"), d = n.data, isLeaf = !n.children;
+    el.className = `cell ${isLeaf ? "leaf" : "group"}` + (d === selected ? " selected" : "");
+    if (isLeaf) {
+      el.style.background = scale.colour(metric(d));
+      el.style.color = scale.ink(metric(d));
+    }
+    Object.assign(el.style, { left: `${n.x0}px`, top: `${n.y0}px`, width: `${w}px`, height: `${h}px` });
+    if (w > 30 && h > 14) el.textContent = d.name + (d.children ? "/" : "");
+    el.dataset.path = d.path;
+    frag.append(el);
+  }
+  stage.append(frag);
+  document.getElementById("legend").innerHTML = `<span>${METRICS[colourSelect.value].label()}:</span>` +
+    `<span><i style="background:${scale.none}"></i>0</span>` +
+    scale.bins.map(([lo, hi, c]) => `<span><i style="background:${c}"></i>${short(lo)}${hi > lo ? `–${short(hi)}` : ""}</span>`).join("") +
+    (sizeSelect.value === "open" ? `<span>Blank space in a directory: issues filed against it but not against any one part.</span>` : "");
+  const crumbs = [];
+  for (let n = current; n; n = n.parent) crumbs.unshift(n);
+  document.getElementById("crumbs").innerHTML = crumbs.map((n, i) => i === crumbs.length - 1
+    ? `<b>${esc(n.name)}</b>` : `<button type="button" data-path="${esc(n.path)}">${esc(n.name)}</button>`).join(" / ");
+}
+
+function show(path) {
+  const node = byPath.get(path);
+  if (!node) return;
+  selected = node;
+  current = node.children ? node : node.parent;
+  if (location.hash.slice(1) !== path) history.replaceState(null, "", `${location.search}#${path}`);
+  draw();
+  describe(node);
+}
+
+function describe(node) {
+  const commit = i => {
+    const [hash, nid, , date, subject] = D.commits[i];
+    const day = new Date(date * 1000).toISOString().slice(0, 10);
+    return `<li><a href="https://git.drupalcode.org/project/drupal/-/commit/${hash}" target="_blank" rel="noopener">${day}</a> ${esc(subject)}</li>`;
+  };
+  const issue = nid => {
+    const [title, status] = D.issues[nid] || ["", ""];
+    return `<li><a href="https://www.drupal.org/i/${nid}" target="_blank" rel="noopener">#${nid}</a> ${esc(title)} <small>${esc(status)}</small></li>`;
+  };
+  let html = `<h2>${esc(node.path)}${node.children ? "/" : ""}</h2><dl class="stats">
+    <dt>Lines</dt><dd>${fmt(node.loc)}</dd>
+    <dt>Churn</dt><dd>${fmt(node.churn)} commits in ${D.years.churn} years</dd>
+    <dt>Hotspot</dt><dd>${fmt(node.hotspot)}${node.children ? " (hottest file)" : ""}</dd>
+    <dt>Bug fixes</dt><dd>${fmt(node.fixes)} commits in ${D.years.history} years</dd>
+    <dt>Open issues</dt><dd>${fmt(node.open)}, ${fmt(node.bugs)} of them bug reports</dd>
+    <dt>People</dt><dd>${fmt(node.people)} credited in the last ${D.years.active === 1 ? "year" : `${D.years.active} years`}</dd>
+    ${selection ? `<dt>Selected</dt><dd>${fmt(node.sel)} issues from ${esc(selection.label)}</dd>` : ""}</dl>
+    <p><button type="button" class="action" data-action="map">Show these issues on the issue map</button></p>`;
+  const maintainers = [];
+  for (let n = node; n; n = n.parent) if (n.maintainers) maintainers.push(...n.maintainers.map(m => [m, n]));
+  if (maintainers.length) {
+    html += `<h3>Maintainers</h3><ul>` + maintainers.map(([[name, people], n]) =>
+      `<li>${esc(name)}: ${people.length ? people.map(esc).join(", ") : "none listed"}${n === node ? "" : ` <small>(${esc(n.path)})</small>`}</li>`).join("") +
+      `</ul><small>From core/MAINTAINERS.txt.</small>`;
+  }
+  if (node.with?.length) {
+    html += `<h3>Changes with</h3><ul>` + node.with.map(([p, c]) =>
+      `<li><span class="count">${c}</span>${byPath.has(p) ? `<button type="button" data-path="${esc(p)}">${esc(p)}</button>` : esc(p)}</li>`).join("") +
+      `</ul><small>Shared commits in the last ${D.years.history} years, leaving out commits that touch many files.</small>`;
+  }
+  if (node.issues) {
+    html += `<h3>Open issues</h3>`;
+    for (const [source, [label, help]] of Object.entries(SOURCES)) {
+      const entry = node.issues[source];
+      if (!entry) continue;
+      const [total, nids] = entry;
+      html += `<h4>${label} <span class="count">${fmt(total)}</span></h4><small>${help}${total > nids.length ? ` Most recently active ${nids.length}.` : ""}</small><ul>` +
+        nids.map(issue).join("") + `</ul>`;
+    }
+  }
+  if (node.commits.length) html += `<h3>Recent commits</h3><ul>` + node.commits.map(commit).join("") + `</ul>`;
+  panel.innerHTML = html;
+}
+
+function find(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return describe(selected);
+  const hits = [];
+  for (const [path, node] of byPath) {
+    if (path.toLowerCase().includes(q)) hits.push(node);
+    if (hits.length >= 200) break;
+  }
+  // Shorter paths first: a directory before the files inside it.
+  hits.sort((a, b) => a.path.length - b.path.length);
+  panel.innerHTML = `<h3>Matches</h3>` + (hits.length ? `<ul>` + hits.slice(0, 40).map(n =>
+    `<li><button type="button" data-path="${esc(n.path)}">${esc(n.path)}${n.children ? "/" : ""}</button></li>`).join("") + `</ul>`
+    : `<p class="help">No file or directory matches.</p>`);
+}
+
+stage.addEventListener("click", e => { if (e.target.dataset.path) show(e.target.dataset.path); });
+stage.addEventListener("mousemove", e => {
+  const node = byPath.get(e.target.dataset?.path);
+  if (!node) return tip.style.display = "none";
+  const box = stage.getBoundingClientRect();
+  tip.innerHTML = `${esc(node.path)}<br><small>${fmt(node.loc)} lines · churn ${fmt(node.churn)} · hotspot ${fmt(node.hotspot)}`
+    + ` · ${fmt(node.fixes)} bug fixes · ${fmt(node.open)} open issues${selection ? ` · ${fmt(node.sel)} selected` : ""}</small>`;
+  tip.style.display = "block";
+  const x = e.clientX - box.left + 12, y = e.clientY - box.top + 12;
+  tip.style.left = `${Math.min(x, box.width - tip.offsetWidth - 4)}px`;
+  tip.style.top = `${y + tip.offsetHeight > box.height ? y - tip.offsetHeight - 24 : y}px`;
+});
+stage.addEventListener("mouseleave", () => tip.style.display = "none");
+document.addEventListener("click", e => {
+  if (e.target.dataset.action === "map") {
+    const nids = issuesOf(selected);
+    localStorage.setItem(SELECTION, JSON.stringify({ label: `code in ${selected.path}`, nids }));
+    location.href = "map.html#selection";
+  }
+  if (e.target.dataset.action === "clear-selection") {
+    selection = null;
+    colourSelect.querySelector("[value=sel]")?.remove();
+    document.getElementById("banner")?.remove();
+    history.replaceState(null, "", location.pathname + location.hash);
+    draw(); describe(selected);
+  }
+  if (e.target.closest("nav, aside") && e.target.dataset.path) {
+    document.getElementById("find").value = "";
+    show(e.target.dataset.path);
+  }
+});
+document.addEventListener("keydown", e => {
+  if ((e.key === "Escape" || e.key === "Backspace") && !e.target.closest("input, select") && current.parent) show(current.parent.path);
+});
+document.getElementById("find").addEventListener("input", e => find(e.target.value));
+colourSelect.addEventListener("change", draw);
+sizeSelect.addEventListener("change", draw);
+// Each theme has its own ramps, so redraw when it changes.
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => current && draw());
+window.addEventListener("hashchange", () => {
+  const hash = decodeURIComponent(location.hash.slice(1));
+  // The Areas view moved to its own page.
+  hash === "areas" ? location.replace("areas.html") : show(hash);
+});
+new ResizeObserver(() => current && draw()).observe(stage);
+
+
+function loadSelection() {
+  try { selection = JSON.parse(localStorage.getItem(SELECTION)); } catch { selection = null; }
+  if (!selection?.nids?.length) return selection = null;
+  countSelection(selection.nids);
+  colourSelect.insertAdjacentHTML("afterbegin", `<option value="sel">Selected issues</option>`);
+  colourSelect.value = "sel";
+  document.querySelector(".toolbar").insertAdjacentHTML("beforeend", `<span class="banner" id="banner">Showing
+    ${fmt(selection.nids.length)} issues from ${esc(selection.label)}
+    <button type="button" data-action="clear-selection">Clear</button></span>`);
+}
+
+fetch("explorer.json", { cache: "no-cache" }).then(r => r.json()).then(data => {
+  showUpdated(data.generated);
+  D = data;
+  D.paths.forEach((p, i) => idOf.set(p, i));
+  index(D.tree, null);
+  if (new URLSearchParams(location.search).has("selection")) loadSelection();
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (hash === "areas") location.replace("areas.html");
+  else show(byPath.has(hash) ? hash : "core");
+}).catch(() => panel.innerHTML = `<p class="help">Could not load explorer.json. Run <code>uv run explore.py PATH_TO_CORE_CLONE</code> and serve this directory over HTTP.</p>`);
+</script>
+</body>
+</html>

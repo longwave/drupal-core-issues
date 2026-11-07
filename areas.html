@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Areas</title>
+<link rel="stylesheet" href="site.css">
+<script src="site.js"></script>
+<style>
+  :root {
+    --maintained: #2a78d6; --unmaintained: #eb6834;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --maintained: #3987e5; --unmaintained: #d95926;
+    }
+  }
+  :root[data-theme="dark"] {
+    --maintained: #3987e5; --unmaintained: #d95926;
+  }
+  body { font-size: 14px; }
+  .help { color: var(--text-secondary); }
+  main { padding: 16px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  #areas .intro { max-width: 70ch; margin: 0 0 8px; color: var(--text-secondary); }
+  #plot { width: 100%; height: 540px; display: block; }
+  #plot text { font-size: 12px; fill: var(--text-secondary); }
+  #plot .label { fill: var(--text-primary); }
+  #plot .axis { stroke: var(--grid); }
+  #plot .median { stroke: var(--text-muted); stroke-dasharray: 4 4; }
+  #plot circle { stroke: var(--page); stroke-width: 2; cursor: pointer; fill-opacity: .85; }
+  #plot circle:hover, #plot circle:focus-visible { stroke: var(--text-primary); outline: none; }
+  .key { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--text-secondary); margin: 4px 0 12px; }
+  .key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+  .scroll { overflow-x: auto; }
+  #areas table { border-collapse: collapse; font-variant-numeric: tabular-nums; width: 100%; margin-top: 16px; }
+  #areas th, #areas td { padding: 4px 10px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
+  #areas th:nth-child(2), #areas td:nth-child(2) { text-align: left; }
+  #areas th button { all: unset; cursor: pointer; font-weight: 600; }
+  #areas th[aria-sort] button::after { content: " ▾"; }
+  #areas th[aria-sort="ascending"] button::after { content: " ▴"; }
+  #areas button:focus-visible { outline: 2px solid var(--accent); }
+</style>
+</head>
+<body>
+<header class="site">
+  <a class="home" href="index.html">Drupal core issues</a>
+  <a href="index.html">Where to help</a>
+  <a href="explorer.html">Code explorer</a>
+  <span aria-current="page">Areas</span>
+  <a href="map.html">Issue map</a>
+  <a href="metrics.html">Issue metrics</a>
+  <span class="updated" id="updated"></span>
+</header>
+<main>
+  <h1>Areas that need people</h1>
+  <section id="areas" aria-label="Areas"><p class="help">Loading explorer.json…</p></section>
+</main>
+<script>
+let D, byPath = new Map();
+const fmt = n => n.toLocaleString("en");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const short = v => v.toLocaleString("en", { maximumFractionDigits: v < 10 ? 1 : 0 });
+
+function index(node, parent) {
+  node.path = parent ? `${parent.path}/${node.name}` : node.name;
+  byPath.set(node.path, node);
+  (node.children || []).forEach(c => index(c, node));
+}
+
+// Areas: one dot per module, library directory, theme or profile, comparing need with attention.
+const MIN_AREA_LINES = 200;
+let areaSort = { key: "neglect", down: true };
+
+function areaRows() {
+  return D.areas.map(p => byPath.get(p)).filter(n => n.loc >= MIN_AREA_LINES).map(n => {
+    // Whether MAINTAINERS.txt lists a maintainer for the area or a directory in it.
+    const maintained = (function listed(m) {
+      return (m.maintainers || []).some(([, people]) => people.length) || (m.children || []).some(c => c.children && listed(c));
+    })(n);
+    const density = n.bugs * 1000 / n.loc;
+    // Many bugs for the size, few people. Areas with a handful of bugs are left out of the ranking.
+    const neglect = n.bugs >= 5 ? density / (n.people + 1) : 0;
+    return { node: n, name: n.path.replace("core/lib/Drupal/", "").replace("core/", ""), loc: n.loc, bugs: n.bugs,
+      density, people: n.people, maintained, neglect };
+  });
+}
+
+function ticks(max, steps) {
+  const step = steps.find(s => max / s <= 8) || steps.at(-1);
+  return Array.from({ length: Math.floor(max / step) + 1 }, (_, i) => i * step);
+}
+
+function drawAreas() {
+  const rows = areaRows(), el = document.getElementById("areas");
+  const W = Math.max(320, el.clientWidth - 32), H = 540, m = { l: 56, r: 24, t: 16, b: 48 };
+  const fx = v => Math.log10(1 + v), maxX = Math.max(...rows.map(r => r.density)), maxY = Math.max(...rows.map(r => r.people));
+  const x = v => m.l + fx(v) / fx(maxX) * (W - m.l - m.r), y = v => H - m.b - v / (maxY * 1.05) * (H - m.t - m.b);
+  const maxLoc = Math.max(...rows.map(r => r.loc)), radius = r => 3 + 15 * Math.sqrt(r.loc / maxLoc);
+  const median = values => values.sort((a, b) => a - b)[Math.floor(values.length / 2)];
+  const mx = median(rows.map(r => r.density)), my = median(rows.map(r => r.people));
+  // Label the highest-ranked dots, right of the dot or else left of it, skipping any label that would overlap another.
+  const caption = "Many bugs for their size, few people ↓";
+  const placed = [{ x: W - m.r - caption.length * 6.5, w: caption.length * 6.5, y: y(my) - 12 }], labels = [];
+  for (const r of [...rows].sort((a, b) => b.neglect - a.neglect).filter(r => r.neglect).slice(0, 12)) {
+    const w = r.name.length * 6.5, cx = x(r.density), cy = y(r.people), rr = radius(r);
+    const spot = [[cx + rr + 3, "start", cx + rr + 3], [cx - rr - 3, "end", cx - rr - 3 - w]].find(([, , left]) =>
+      left >= m.l && left + w <= W - m.r && !placed.some(b => left < b.x + b.w && left + w > b.x && Math.abs(cy - b.y) < 13));
+    if (!spot) continue;
+    placed.push({ x: spot[2], w, y: cy });
+    labels.push(`<text class="label" x="${spot[0]}" y="${cy + 4}" text-anchor="${spot[1]}">${esc(r.name)}</text>`);
+  }
+  const xTicks = [0, 0.5, 1, 2, 5, 10, 20, 50, 100, 200].filter(t => t <= maxX);
+  const svg = `<svg id="plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="Scatter plot of areas: open bug reports per 1,000 lines against people credited in the last year">
+    ${xTicks.map(t => `<line class="axis" x1="${x(t)}" x2="${x(t)}" y1="${m.t}" y2="${H - m.b}"/><text x="${x(t)}" y="${H - m.b + 16}" text-anchor="middle">${t}</text>`).join("")}
+    ${ticks(maxY, [1, 2, 5, 10, 20, 50, 100]).map(t => `<line class="axis" x1="${m.l}" x2="${W - m.r}" y1="${y(t)}" y2="${y(t)}"/><text x="${m.l - 8}" y="${y(t) + 4}" text-anchor="end">${t}</text>`).join("")}
+    <line class="median" x1="${x(mx)}" x2="${x(mx)}" y1="${m.t}" y2="${H - m.b}"/>
+    <line class="median" x1="${m.l}" x2="${W - m.r}" y1="${y(my)}" y2="${y(my)}"/>
+    <text x="${W - m.r}" y="${y(my) - 8}" text-anchor="end">${caption}</text>
+    <text x="${m.l}" y="${m.t + 12}">Few bugs, many people</text>
+    <text x="${(m.l + W - m.r) / 2}" y="${H - 8}" text-anchor="middle">Open bug reports per 1,000 lines (log scale)</text>
+    <text transform="translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">People credited in the last year</text>
+    ${[...rows].sort((a, b) => b.loc - a.loc).map(r => `<circle tabindex="0" data-path="${esc(r.node.path)}" cx="${x(r.density)}" cy="${y(r.people)}" r="${radius(r)}"
+      fill="var(${r.maintained ? "--maintained" : "--unmaintained"})"><title>${esc(r.name)}
+${fmt(r.loc)} lines · ${fmt(r.bugs)} open bug reports (${short(r.density)} per 1,000 lines) · ${fmt(r.people)} people in the last year
+${r.maintained ? "Maintainer listed" : "No maintainer listed"}</title></circle>`).join("")}
+    ${labels.join("")}
+  </svg>`;
+  const cols = [["name", "Area"], ["loc", "Lines"], ["bugs", "Open bug reports"], ["density", "Per 1,000 lines"],
+    ["people", "People in the last year"]];
+  const sorted = [...rows].sort((a, b) => {
+    const [va, vb] = [a[areaSort.key], b[areaSort.key]];
+    return (va < vb ? -1 : va > vb ? 1 : 0) * (areaSort.down ? -1 : 1);
+  });
+  el.innerHTML = `<p class="intro">Each dot is a module, a directory of core's libraries, a theme or a profile, with at least
+    ${MIN_AREA_LINES} lines. Areas to the right have many open bug reports for their size, and areas lower down had few people
+    credited in the last year. Dashed lines mark the middle of each. The labelled dots score highest on bugs per 1,000 lines
+    divided by people, among areas with at least 5 open bug reports, where a label fits. Click a dot or a name to open it in the code explorer.</p>
+    <div class="key"><span><i style="background:var(--maintained)"></i>Maintainer listed</span>
+    <span><i style="background:var(--unmaintained)"></i>No maintainer listed in MAINTAINERS.txt</span><span>Dot size: lines</span></div>
+    ${svg}
+    <div class="scroll"><table><thead><tr><th><button data-sort="neglect" title="Bugs per 1,000 lines divided by people">Rank</button></th>${cols.map(([k, label]) =>
+      `<th${areaSort.key === k ? ` aria-sort="${areaSort.down ? "descending" : "ascending"}"` : ""}><button data-sort="${k}">${label}</button></th>`).join("")}</tr></thead>
+    <tbody>${sorted.map(r => `<tr><td>${r.neglect ? short(r.neglect) : ""}</td><td><a href="explorer.html#${esc(r.node.path)}">${esc(r.name)}</a></td>
+      <td>${fmt(r.loc)}</td><td>${fmt(r.bugs)}</td><td>${short(r.density)}</td><td>${fmt(r.people)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+const open = path => location.href = `explorer.html#${path}`;
+document.getElementById("areas").addEventListener("click", e => {
+  const sort = e.target.closest("[data-sort]"), dot = e.target.closest("circle[data-path]");
+  if (sort) {
+    areaSort = { key: sort.dataset.sort, down: sort.dataset.sort === areaSort.key ? !areaSort.down : sort.dataset.sort !== "name" };
+    drawAreas();
+  }
+  if (dot) open(dot.dataset.path);
+});
+document.getElementById("areas").addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.matches("circle[data-path]")) open(e.target.dataset.path);
+});
+window.addEventListener("resize", () => D && drawAreas());
+
+fetch("explorer.json", { cache: "no-cache" }).then(r => r.json()).then(data => {
+  showUpdated(data.generated);
+  D = data;
+  index(D.tree, null);
+  drawAreas();
+}).catch(() => document.getElementById("areas").innerHTML =
+  `<p class="help">Could not load explorer.json. Run <code>uv run explore.py PATH_TO_CORE_CLONE</code> and serve this directory over HTTP.</p>`);
+</script>
+</body>
+</html>
