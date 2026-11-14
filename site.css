@@ -1,0 +1,107 @@
+/* Shared by every page: colour tokens, base styles and the site header. Each page adds its own tokens and layout. */
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface-1: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --grid: #e1e0d9;
+  --border: rgba(11, 11, 11, 0.10);
+  --accent: #2a78d6;
+  /* Inside status-tinted issue rows: a light tint, darker text and a deeper link blue, all at least 5.7:1. */
+  --tint: 10%;
+  --row-text: #3b3a37;
+  --row-link: #1c5cab;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --grid: #2c2c2a;
+    --border: rgba(255, 255, 255, 0.10);
+    --accent: #3987e5;
+    --row-text: #dcdbd2;
+    --row-link: #6da7ec;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface-1: #1a1a19;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --grid: #2c2c2a;
+  --border: rgba(255, 255, 255, 0.10);
+  --accent: #3987e5;
+  --row-text: #dcdbd2;
+  --row-link: #6da7ec;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--page); color: var(--text-primary);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+a { color: var(--accent); }
+
+/* The site header. Its title is the page's h1 on the start page, and a link back there elsewhere. */
+header.site {
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+  padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface-1);
+}
+header.site .home { font-size: 17px; font-weight: 700; margin: 0 8px 0 0; color: inherit; text-decoration: none; }
+header.site a:not(.home) { font-size: 13px; text-decoration: none; }
+header.site a:not(.home):hover, header.site a:not(.home):focus-visible { text-decoration: underline; }
+/* The current page in the menu, as text rather than a link to itself. */
+header.site [aria-current="page"] { font-size: 13px; font-weight: 600; }
+/* When the page's data was last generated, at the end of the header. */
+header.site .updated { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+
+/* Section labels in the sidebars. */
+nav h2, aside h3 { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+
+/* A row of buttons where one is pressed, such as Map and Topics. */
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.segmented button {
+  font: inherit; font-size: 13px; padding: 4px 12px; border: 0; cursor: pointer;
+  background: var(--surface-1); color: var(--text-secondary);
+}
+.segmented button + button { border-left: 1px solid var(--border); }
+.segmented button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
+.segmented button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Read by screen readers only. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Issue tables, as on drupal.org's issue listing, on Where to help. */
+table.issues { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.issues thead th { background: var(--page); text-align: left; font-weight: 600; padding: 6px 8px;
+  border-bottom: 2px solid var(--grid); white-space: nowrap; }
+table.issues thead th button { all: unset; cursor: pointer; }
+table.issues thead th button:focus-visible { outline: 2px solid var(--accent); }
+table.issues thead th[aria-sort] button::after { content: " ▾"; }
+table.issues thead th[aria-sort="ascending"] button::after { content: " ▴"; }
+table.issues td { padding: 6px 8px; vertical-align: top; }
+table.issues .num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Rows tinted by status. */
+tbody.issue { background: color-mix(in srgb, var(--status) var(--tint), var(--surface-1)); border-top: 3px solid var(--page);
+  --text-secondary: var(--row-text); --accent: var(--row-link); }
+/* Titles get a share of the width, so long names such as Foo::bar() can wrap without squeezing the column. */
+tbody.issue td.title { font-size: 15px; width: 34%; overflow-wrap: anywhere; }
+tbody.issue td.title a { font-weight: 600; text-decoration: none; }
+tbody.issue td.title a:hover { text-decoration: underline; }
+table.issues .nid { color: var(--text-secondary); font-size: 13px; margin-left: 6px; white-space: nowrap; }
+table.issues td.status { white-space: nowrap; }
+table.issues td.status .dot { margin-right: 6px; }
+table.issues time { white-space: nowrap; }
+table.issues td .sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+table.issues td .sub b { color: var(--text-primary); }
+/* Child issues are indented under their parent; the toggle opens and closes the issues below. */
+td.title .row { display: flex; gap: 6px; align-items: baseline; padding-left: calc(var(--depth) * 22px); }
+button.toggle { all: unset; cursor: pointer; font-size: 1.25em; line-height: 1; width: 1em; flex: none; text-align: center; color: var(--text-secondary); }
+button.toggle:focus-visible { outline: 2px solid var(--accent); }
+td.title .spacer { width: 1.25em; flex: none; }

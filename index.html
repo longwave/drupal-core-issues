@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where to help</title>
+<link rel="stylesheet" href="site.css">
+<script src="site.js"></script>
+<style>
+  :root {
+    --surface-2: #f1f0ec;
+    /* Chips: what an issue needs, and why it may matter. Kept clear of the status colours; all at least 5.3:1. */
+    --need-bg: #ebe8fb; --need-text: #3d2fa0;
+    --reason-bg: #dcf2e7; --reason-text: #0b5e40;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --surface-2: #242423;
+      --need-bg: #2d2754; --need-text: #d4cdfa;
+      --reason-bg: #163628; --reason-text: #a6e6c9;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface-2: #242423;
+    --need-bg: #2d2754; --need-text: #d4cdfa;
+    --reason-bg: #163628; --reason-text: #a6e6c9;
+  }
+  html, body { height: 100%; }
+  body {
+    display: grid; grid-template-rows: auto 1fr; grid-template-columns: 260px 1fr;
+  }
+  nav { border-right: 1px solid var(--border); background: var(--surface-1); padding: 16px 12px; overflow-y: auto; }
+  nav label { display: block; color: var(--text-secondary); font-size: 13px; margin: 0 4px 4px; }
+  input[type=search], select {
+    font: inherit; color: inherit; background: var(--page);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px;
+  }
+  input[type=search] { width: 100%; }
+  #who-result { font-size: 12px; color: var(--text-secondary); margin: 6px 4px 0; }
+  nav h2 { margin: 20px 4px 4px; }
+  nav button {
+    all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 5px 8px; border-radius: 6px; cursor: pointer;
+  }
+  nav button:hover { background: var(--surface-2); }
+  nav button:focus-visible { outline: 2px solid var(--accent); }
+  nav button[aria-current="true"] { background: var(--text-primary); color: var(--page); }
+  nav button[aria-current="true"] .n { color: inherit; }
+  nav .n { margin-left: auto; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+  .nodot { width: 9px; flex: none; }
+  main { overflow-y: auto; padding: 20px 24px 40px; min-width: 0; }
+  main h2 { font-size: 20px; font-weight: 600; margin: 0; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  main h2 .n { font-size: 14px; font-weight: normal; color: var(--text-secondary); }
+  .why { color: var(--text-secondary); margin: 4px 0 12px; max-width: 90ch; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; margin: 0 0 12px; padding: 10px 12px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; }
+  .filters label { display: flex; flex-direction: column; font-size: 13px; color: var(--text-secondary); gap: 2px; }
+  .filters select { max-width: 220px; }
+  .filters .spacer { flex: 1; }
+  .conditions { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+  .condition { font-size: 13px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 1px 4px 1px 10px; }
+  .condition button { all: unset; cursor: pointer; padding: 0 6px; color: var(--text-secondary); }
+  .condition button:hover, .condition button:focus-visible { color: var(--text-primary); outline: none; }
+  button.plain { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+  button.plain:disabled { color: var(--text-secondary); cursor: default; opacity: .5; }
+  table.issues thead th { position: sticky; top: -20px; z-index: 1; }
+  td.rank { color: var(--text-secondary); }
+  /* The rank only means something in the list's own order. */
+  .norank .rank { display: none; }
+  tr.detail td { padding-top: 0; padding-bottom: 10px; }
+  /* The listed issue, when it is shown inside its tree. */
+  tbody.issue.target { outline: 2px solid var(--accent); outline-offset: -2px; }
+  button.link { all: unset; cursor: pointer; text-decoration: underline; }
+  button.link:focus-visible { outline: 2px solid var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; margin: 6px 0 0; }
+  .chip { font-size: 13px; border-radius: 10px; padding: 1px 9px; }
+  .chip.need { background: var(--need-bg); color: var(--need-text); }
+  .chip.reason { background: var(--reason-bg); color: var(--reason-text); }
+  .chip b { font-weight: 600; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; }
+  .badge { font-size: 12px; font-weight: 600; color: var(--page); background: var(--accent); border-radius: 10px; padding: 0 8px; white-space: nowrap; }
+  .badge time { white-space: nowrap; }
+  .pager { display: flex; gap: 8px; align-items: center; margin: 12px 0 0; color: var(--text-secondary); font-size: 13px; }
+  .help { color: var(--text-secondary); }
+  /* Below this, the sidebar leaves too little room: drop Category and Created first. */
+  @media (max-width: 1600px) {
+    .wide { display: none; }
+  }
+  @media (max-width: 800px) {
+    /* One page that scrolls as a whole, rather than a list scrolling in a box under the sidebar. */
+    html, body { height: auto; }
+    body { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+    main { overflow: visible; }
+    table.issues thead th { top: 0; }
+    table.issues td.status { white-space: normal; }
+    tbody.issue td.title { width: auto; overflow-wrap: anywhere; }
+    tr.detail td { overflow-wrap: anywhere; }
+    nav { border-right: 0; border-bottom: 1px solid var(--border); }
+    main { padding: 16px; }
+    .medium { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="site">
+  <h1 class="home">Drupal core issues</h1>
+  <span aria-current="page">Where to help</span>
+  <!-- Hidden until they are ready to demo; the pages are still there.
+  <a href="explorer.html">Code explorer</a>
+  <a href="areas.html">Areas</a>
+  <a href="map.html">Issue map</a>
+  -->
+  <a href="metrics.html">Issue metrics</a>
+  <span class="updated" id="updated"></span>
+</header>
+<nav aria-label="Lists">
+  <form id="who">
+    <label for="user">Your drupal.org username</label>
+    <input type="search" id="user" autocomplete="off" placeholder="For lists about code you know">
+    <div id="who-result"></div>
+  </form>
+  <div id="nav"></div>
+</nav>
+<main><div id="list"><p class="help">Loading explorer.json and start.json…</p></div></main>
+<script>
+const SELECTION = "drupal-issue-selection", USER = "drupal-start-user";
+const DAY = 86400, PAGE = 50;
+// drupal.org's issue listing colours, as on the issue map.
+const STATUS = {
+  "Active": ["#939393", "Active"], "Needs work": ["#f4845f", "Needs work"], "Needs review": ["#f2b100", "Needs review"],
+  "Reviewed & tested by the community": ["#7ed957", "RTBC"], "Patch (to be ported)": ["#7ed957", "To be ported"],
+  "Postponed": ["#4988fe", "Postponed"], "Postponed (maintainer needs more info)": ["#4988fe", "Needs info"],
+  // Child issues shown under their parent can be fixed or closed.
+  "Fixed": ["#1f9e2c", "Fixed"], "Closed (fixed)": ["#f0506a", "Closed (fixed)"],
+};
+const PRIORITY = { Critical: 4, Major: 3, Normal: 2, Minor: 1 };
+const fmt = n => n.toLocaleString("en");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const day = t => new Date(t * 1000).toISOString().slice(0, 10);
+let D, byPath = new Map(), idOf = new Map(), all = [], blockerOf = {};
+// Child issues by parent, from trees.json, and the issues whose children are shown.
+const childrenOf = new Map(), expanded = new Set();
+// Issues shown inside their whole tree, from its top issue down.
+const rooted = new Set();
+// A tree of at least this many issues counts as large.
+const LARGE_TREE = 10;
+// The person whose code is matched, or null: { me, match, score, you }.
+let person = null;
+// Filters and sort for the table, kept in the address bar; or a view that is not a table.
+let state = {}, page = 0;
+// Whether the reader picked a list or filter, or came with one in the address bar.
+let chosen = !!location.hash.slice(1);
+
+function index(node, path) {
+  node.path = path;
+  byPath.set(path, node);
+  for (const c of node.children || []) index(c, path ? `${path}/${c.name}` : c.name);
+}
+
+const areaOf = path => D.areas.find(a => path === a || path.startsWith(a + "/"));
+const short = path => path.replace("core/lib/Drupal/", "").replace("core/", "");
+// Time before the data was built, in its two largest units, as drupal.org writes it ("5 months 1 week").
+function age(t) {
+  let s = Math.max(0, D.generated - t);
+  const parts = [];
+  // Average calendar lengths, so 12 months always make a year.
+  for (const [name, size] of [["year", 365.25 * DAY], ["month", 365.25 / 12 * DAY], ["week", 7 * DAY], ["day", DAY], ["hour", 3600]]) {
+    if (s >= size) {
+      const n = Math.floor(s / size);
+      parts.push(`${n} ${name}${n > 1 ? "s" : ""}`);
+      s -= n * size;
+      if (parts.length === 2) break;
+    } else if (parts.length) break;
+  }
+  return parts.join(" ") || "under an hour";
+}
+// The same time in one unit, for pills: "9 days", "4 months". Each unit starts at 2 of itself, so rounding
+// hides at most about a third.
+function brief(t) {
+  const s = Math.max(0, D.generated - t), n = (v, u) => `${v} ${u}${v > 1 ? "s" : ""}`, MONTH = 365.25 / 12 * DAY;
+  if (s < 60) return "under a minute";
+  if (s < 3600) return n(Math.floor(s / 60), "minute");
+  if (s < DAY) return n(Math.floor(s / 3600), "hour");
+  if (s < 14 * DAY) return n(Math.floor(s / DAY), "day");
+  if (s < 2 * MONTH) return n(Math.floor(s / (7 * DAY)), "week");
+  if (s < 24 * MONTH) return n(Math.floor(s / MONTH), "month");
+  return n(Math.floor(s / (12 * MONTH)), "year");
+}
+const when = (t, short) => `<time datetime="${new Date(t * 1000).toISOString()}" title="${day(t)}">${(short ? brief : age)(t)}</time>`;
+
+// What the start page knows about an issue, by name.
+function detail(nid) {
+  const [priority, author, last, commenters, mrSeen, needs, mentioned, blocks, newcomer, component, humans,
+    statusSince, knocked, bounces, summaryEdited, raisedCritical] = D.details[nid] || [];
+  return { priority, author, last, commenters: commenters || {}, mrSeen, needs: needs || [],
+    mentioned: mentioned || {}, blocks: blocks || 0, newcomer, component: component || "", humans: humans || 0,
+    statusSince, knocked, bounces: bounces || 0, summaryEdited, raisedCritical };
+}
+const mine = nid => !!person && (D.mrAuthors[nid] || []).includes(person.me);
+const pushed = nid => !!person && (D.mrPushers[nid] || []).includes(person.me);
+// Your own work: you opened a merge request on it, or pushed commits to one.
+const yours = nid => mine(nid) || pushed(nid);
+// You reported the issue, commented on it, or worked on a merge request.
+const involved = nid => yours(nid) || (!!person && person.me in detail(nid).commenters);
+// Comments by people since your last one, or NaN if you have not commented.
+const since = nid => detail(nid).humans - (detail(nid).commenters[person?.me] ?? NaN) - 1;
+// The first committed issue this one follows up that you were credited on, if any.
+const followUpOf = nid => person && (D.followUps[nid] || []).find(m => D.creditedOn[m].includes(person.me));
+// Tags for checks done by hand on a site, rather than in code.
+const HAND = ["Needs manual testing", "Needs screenshots", "Needs accessibility review", "Needs usability review"];
+
+// Match the code a person knows, from their credits: recent credits count most, and knowledge few others
+// share counts more. Directories from each file's area down to it get a little weight, for issues filed against them.
+function knowPerson(name) {
+  const result = document.getElementById("who-result");
+  person = null;
+  if (!name) return result.textContent = "";
+  const me = name.toLowerCase(), credits = D.people[me];
+  const [spelling, files, dirs] = credits || [name, [], []];
+  result.textContent = credits
+    ? `Using ${spelling}'s commit credits and comments.`
+    : `No commit credits found for "${name}" in the last ${D.years.history} years, so the lists about code you know are empty. New replies and Tagged you still work.`;
+  // Files count by your credits on them; directories count a tenth as much, for issues filed against a
+  // whole component. Both are divided by the number of people credited there.
+  const weight = new Map();
+  for (const [id, , faded] of files) weight.set(id, faded / (D.knowers[id] || 1));
+  for (const [id, , faded] of dirs) weight.set(id, 0.1 * faded / (D.knowers[id] || 1));
+  // An issue matches by the one linked file or directory you know best, so a merge request that touches
+  // many files does not outrank a focused issue in code you know better.
+  const match = new Map();
+  for (const nid of all) {
+    const m = (D.links[nid] || []).reduce((s, id) => Math.max(s, weight.get(id) || 0), 0);
+    if (m > 0) match.set(nid, m);
+  }
+  // Whether you are among the 3 people credited most on a file the issue points at (the explorer's experts).
+  // Directories are left out: a regular contributor is a top name on most of them, so it would say nothing.
+  const expert = nid => (D.links[nid] || []).some(id => {
+    const node = byPath.get(D.paths[id]);
+    return node && !node.children && node.experts.slice(0, 3).some(([n]) => n.toLowerCase() === me);
+  });
+  // Someone asking for you puts an issue first, then your own merge requests and commits. After that, the match, raised
+  // for issues that block others, come from newcomers, are Major or Critical, or have waited long, and lowered
+  // for very long threads. Issues outside your code follow, most recently updated first.
+  const score = nid => {
+    const d = detail(nid), m = match.get(nid) || 0;
+    const waited = Math.min(26, (D.generated - (d.last || D.issues[nid][3])) / (7 * DAY));
+    const boost = 1 + 0.5 * Math.min(d.blocks, 4) + (d.newcomer ? 0.5 : 0) + ({ Critical: 1, Major: 0.5 }[d.priority] || 0) + waited / 52;
+    // Among issues that tagged you, the latest tag first: a day is worth far more than any match.
+    return (me in d.mentioned ? 2e6 + d.mentioned[me] / 1e3 : 0) + ([...D.mrAuthors[nid] || [], ...D.mrPushers[nid] || []].includes(me) ? 1e6 : 0)
+      + m * boost * (d.humans >= 100 ? 0.5 : 1) + D.issues[nid][4] / 1e12;
+  };
+  // The first area the issue points at where you have credits, and whether you are a top 3 contributor there.
+  const area = nid => ({ path: (D.links[nid] || []).filter(id => weight.has(id)).map(id => areaOf(D.paths[id])).find(Boolean),
+    expert: expert(nid) });
+  person = { me, match, score, area, maintains: new Set(D.maintains[me] || []) };
+}
+
+// Filters: key, label, options [value, label], and a test. Options of null are built from the issues.
+const FILTERS = [
+  ["status", "Status", null, (nid, v) => D.issues[nid][1] === v],
+  ["priority", "Priority", null, (nid, v) => v === MAJOR ? ["Critical", "Major"].includes(detail(nid).priority) : detail(nid).priority === v],
+  ["category", "Category", null, (nid, v) => D.issues[nid][2] === v],
+  ["component", "Component", null, (nid, v) => detail(nid).component === v],
+  ["needs", "Needs", null, (nid, v) => detail(nid).needs.includes(v)],
+  ["involved", "Involvement", [["yes", "You took part"], ["new", "New replies since yours"],
+    ["work", "Your merge request or commits"], ["notwork", "Not your merge request or commits"], ["no", "You have not taken part"]],
+    (nid, v) => v === "new" ? since(nid) > 0 : v === "work" || v === "notwork" ? yours(nid) === (v === "work") : involved(nid) === (v === "yes"), true],
+  ["maintained", "Subsystem", [["yes", "Components you maintain"]], nid => !!person?.maintains.has(detail(nid).component), true],
+  ["opened", "Opened", [["year", "2 weeks to a year ago"]], nid => {
+    const a = D.generated - D.issues[nid][3];
+    return a >= 14 * DAY && a <= 365 * DAY;
+  }],
+  ["activity", "Activity", [["recent", "Updated in the last month"], ["quiet", "Quiet for 3 months or more"]], (nid, v) => {
+    const a = D.generated - D.issues[nid][4];
+    return v === "recent" ? a <= 30 * DAY : a >= 90 * DAY;
+  }],
+  ["only", "Show only", [["asked", "Tagged you"], ["unblocked", "Blocker closed"], ["noreply", "No reply yet"],
+    ["blocks", "Blocks other issues"], ["newcomer", "First-year contributor"], ["hand", "Needs testing by hand"],
+    ["quiet", "Merge request author quiet 3 months"], ["followup", "Follow-up to your work"],
+    ["knocked", "Was RTBC, needs review or work"], ["summary", "Summary edited since tagged"],
+    ["parentclosed", "Parent issue closed"], ["childrenclosed", "Meta with every child closed"],
+    ["largetree", `${LARGE_TREE} or more issues below`]], (nid, v) => {
+    const d = detail(nid);
+    return v === "asked" ? !!person && person.me in d.mentioned : v === "unblocked" ? nid in blockerOf
+      : v === "noreply" ? D.issues[nid][5] === 0 : v === "blocks" ? d.blocks > 0
+      : v === "hand" ? d.needs.some(t => HAND.includes(t)) : v === "followup" ? !!followUpOf(nid) : v === "knocked" ? !!d.knocked && ["Needs review", "Needs work"].includes(D.issues[nid][1]) : v === "summary" ? !!d.summaryEdited : v === "parentclosed" ? nid in D.parentClosed : v === "childrenclosed" ? nid in D.childrenClosed && (D.issues[nid][2] === "Plan" || /\[meta\]/i.test(D.issues[nid][0])) : v === "quiet" ? !!d.mrSeen && D.generated - d.mrSeen >= 90 * DAY : v === "largetree" ? below(nid).all >= LARGE_TREE : d.newcomer;
+  }],
+];
+const FILTER_KEYS = FILTERS.map(f => f[0]);
+// Conditions the presets use that are not in the filter bar: sorting by Created or Last updated covers them
+// for people. When one applies, it shows above the table as a chip that removes it.
+const HIDDEN = new Set(["opened", "activity", "maintained"]);
+function conditions() {
+  const active = FILTERS.filter(([key]) => HIDDEN.has(key) && state[key]);
+  return active.length ? `<div class="conditions">${active.map(([key, label, options]) => `<span class="condition">${esc(label)}: ${esc((options.find(o => o[0] === state[key])?.[1] || state[key]).toLowerCase())}
+    <button type="button" data-clear="${key}" aria-label="Remove this condition">×</button></span>`).join("")}</div>` : "";
+}
+// An extra Priority option covering both of the top priorities.
+const MAJOR = "Critical or Major";
+// Columns: key, heading, class, sort value. Text columns sort A to Z first; the others largest first.
+const COLUMNS = [
+  ["rank", "#", "rank num", null],
+  ["title", "Title", "", nid => D.issues[nid][0].toLowerCase()],
+  // Within a status, the longest in it first.
+  ["status", "Status", "", nid => Object.keys(STATUS).indexOf(D.issues[nid][1]) * 1e10 + (detail(nid).statusSince || D.generated)],
+  ["priority", "Priority", "medium", nid => PRIORITY[detail(nid).priority] || 0],
+  ["category", "Category", "wide", nid => D.issues[nid][2]],
+  ["component", "Component", "medium", nid => detail(nid).component],
+  ["replies", "Replies", "num medium", nid => detail(nid).humans],
+  ["updated", "Last updated", "medium", nid => D.issues[nid][4]],
+  ["created", "Created", "wide", nid => D.issues[nid][3]],
+];
+const TEXT = new Set(["title", "status", "category", "component"]);
+
+// The sidebar: filter sets for the table, and two views that are not tables.
+// The rank heading's tooltip; the README explains the ranking in full.
+const RANKING = "Best match: issues that tag you, then your merge requests and commits, then code you know best";
+const PRESETS = [
+  { id: "asked", group: "you", title: "Tagged you", filters: { only: "asked" },
+    why: () => `Issues where someone @-mentioned you in a comment in the last ${D.mentionDays} days, and you have not commented since.` },
+  { id: "yours", group: "you", title: "New replies", filters: { involved: "new" }, sort: "updated",
+    why: "Issues you reported or commented on, with comments by others since your last one, most recently updated first. Set Involvement to \"You took part\" for all of your issues." },
+  { id: "commit", group: "you", status: "Reviewed & tested by the community", title: "Committer review",
+    filters: { status: "Reviewed & tested by the community" },
+    why: "RTBC issues, the code you know best first. Issues with your merge request or commits, or that you set RTBC, are marked." },
+  { id: "maintain", group: "you", title: "Maintainer review", filters: { needs: "Needs subsystem maintainer review", maintained: "yes" },
+    why: "Issues tagged Needs subsystem maintainer review, in components of the subsystems MAINTAINERS.txt lists you for. Set Needs to Any for every open issue in them." },
+  { id: "review", group: "you", status: "Needs review", title: "Needs review", filters: { status: "Needs review", involved: "notwork" },
+    why: "Issues waiting for a review, the code you know best first. Issues with your merge request or commits are hidden, as you cannot review your own work." },
+  { id: "work", group: "you", status: "Needs work", title: "Needs work", filters: { status: "Needs work" },
+    why: "Issues that need changes before another review, the code you know best first." },
+  { id: "followups", group: "you", title: "Follow-ups to your work", filters: { only: "followup" }, sort: "updated",
+    why: "Issues that follow up an issue you were credited on: their summary says \"follow-up to #…\", or that issue is their parent. Most recently updated first." },
+  { id: "novice", group: "first", title: "Novice", filters: { needs: "Novice" },
+    why: "Issues tagged Novice: scoped small enough for someone new to core." },
+  { id: "reproduce", group: "first", title: "Reproduce a bug", filters: { needs: "Needs steps to reproduce" },
+    why: "Reports that need steps to reproduce. Trying the report on a fresh site and writing down what happens needs no code, and shows whether the bug is real." },
+  { id: "hand", group: "first", title: "Test by hand", filters: { only: "hand" },
+    why: "Issues that need manual testing, screenshots, or an accessibility or usability review. Try the change on a site and report what you see." },
+  { id: "summary", group: "first", title: "Update an issue summary", filters: { needs: "Needs issue summary update" },
+    why: "Issues whose summary no longer says what the thread decided. Writing it up needs no code, and helps every reviewer after you." },
+  { id: "rebase", group: "first", title: "Fix a merge conflict", filters: { needs: "Has merge conflict" },
+    why: "The merge request no longer applies to core, according to needs-review-queue-bot, and nobody has commented since. The GitLab rebase button cannot resolve the conflict." },
+  { id: "blocking", group: "leverage", title: "Blocks other issues", filters: { only: "blocks" },
+    why: "Other open issues are postponed on these, so finishing one moves several forward." },
+  { id: "waiting-review", group: "leverage", status: "Needs review", title: "Waiting longest for review",
+    filters: { status: "Needs review" }, sort: "status",
+    why: "Issues in Needs review, the longest in it first. A review, even a partial one, tells the author their work was seen." },
+  { id: "knocked", group: "leverage", title: "Back from RTBC", filters: { only: "knocked" }, sort: "status", dir: "desc",
+    why: "Issues that were RTBC once and now need review or work, those needing review first. They have been reviewed before, so often only the latest feedback, or a merge conflict when needs-review-queue-bot set them back, is left." },
+  { id: "newcomers", group: "leverage", status: "Needs review", title: "Newcomers waiting", filters: { status: "Needs review", only: "newcomer" },
+    why: "Merge requests from people in their first year, waiting for a review. A timely first review is what keeps new contributors coming back." },
+  { id: "major", group: "leverage", status: "Needs work", title: "Important bugs left behind",
+    filters: { status: "Needs work", category: "Bug report", priority: MAJOR, only: "quiet" },
+    why: "Critical and Major bug reports in Needs work, whose merge request authors have not commented anywhere on drupal.org for 3 months or more. Core welcomes picking up someone else's merge request: say so on the issue, then carry it on." },
+  { id: "unblocked", group: "tidy", status: "Postponed", title: "Blocker closed", filters: { only: "unblocked" },
+    why: "Postponed issues whose last named blocker (\"postponed on #…\") is now fixed or closed. Check the thread, then set the issue back to Active or Needs work." },
+  { id: "unanswered", group: "tidy", status: "Active", title: "Nobody has answered", filters: { category: "Bug report", only: "noreply", opened: "year" }, sort: "created",
+    why: "Bug reports opened between two weeks and a year ago, with no reply from anyone but the reporter. A first reply, even a question, keeps a reporter involved." },
+  { id: "summary-done", group: "tidy", title: "Summary updated since tagged", filters: { needs: "Needs issue summary update", only: "summary" },
+    why: "Issues tagged Needs issue summary update whose summary someone has edited since the tag was added. Check whether the summary now says what the thread decided, and remove the tag if it does." },
+  { id: "waiting", group: "tidy", status: "Postponed (maintainer needs more info)", title: "Waiting for information", filters: { status: "Postponed (maintainer needs more info)", activity: "quiet" },
+    why: "Issues waiting for more information, quiet for 3 months or more. Ask once more, or close them if the question is still unanswered." },
+  { id: "parent-closed", group: "tidy", title: "Parent issue closed", filters: { only: "parentclosed" }, sort: "updated",
+    why: "Open issues whose parent issue is closed, often a meta or release issue that finished without them. Move each one to a current parent, or close it if the work is no longer needed." },
+  { id: "children-closed", group: "tidy", title: "Metas that may be done", filters: { only: "childrenclosed" }, sort: "updated",
+    why: "Open [meta] issues and plans whose child issues are all closed. Check whether anything is left, then close the meta or say in it what remains." },
+  { id: "all", group: "everything", title: "All open issues", filters: {}, why: "Every open issue in the index." },
+  { id: "trees", group: "everything", title: "Largest trees", filters: { only: "largetree" }, sort: "tree",
+    why: `Open issues with ${LARGE_TREE} or more child issues below them, at any depth, the most open ones below first. Open ▸ to see the issues below. Only open issues are listed, so a tree whose top issue is closed appears as its open branches: "show the tree" on one opens the whole tree.` },
+];
+// Committer and maintainer review only for people MAINTAINERS.txt lists.
+const listed = p => p.id === "commit" ? D.committers.includes(person?.me) : p.id !== "maintain" || !!person?.maintains.size;
+const presetFor = () => PRESETS.find(p => listed(p) && FILTER_KEYS.every(k => (p.filters[k] || "") === (state[k] || "")) && (p.sort || "") === (state.sort || "") && (p.dir || "") === (state.dir || ""));
+
+function matching(skip) {
+  return all.filter(nid => FILTERS.every(([key, , , test]) => key === skip || !state[key] || test(nid, state[key])));
+}
+
+function sorted(nids) {
+  const best = person ? (a, b) => person.score(b) - person.score(a) : (a, b) => D.issues[b][4] - D.issues[a][4];
+  const ranked = [...nids].sort(best), rank = new Map(ranked.map((nid, i) => [nid, i + 1]));
+  // Without a username there is no ranking, only the most recently updated first.
+  const key = state.sort || (person ? "rank" : "updated"), asc = state.dir ? state.dir === "asc" : key === "rank" || TEXT.has(key);
+  if (key === "rank") return { nids: asc ? ranked : ranked.reverse(), rank, key, asc };
+  const value = key === "tree" ? nid => below(nid).open : COLUMNS.find(c => c[0] === key)[3], dir = asc ? 1 : -1;
+  return { nids: ranked.sort((a, b) => { const x = value(a), y = value(b); return (x < y ? -1 : x > y ? 1 : 0) * dir || rank.get(a) - rank.get(b); }), rank, key, asc };
+}
+
+// One issue: a table row in drupal.org's columns, with what concerns you inside the cells, then a line of
+// what it needs and why it may matter, if anything.
+function row(nid, rank, depth = 0, target = false) {
+  const [title, status, category, created, changed] = D.issues[nid];
+  const d = detail(nid), [colour, label] = STATUS[status] || ["#939393", status], me = person?.me;
+  // Things that ask something of you, as badges under the title.
+  const badges = [];
+  if (me && me in d.mentioned) badges.push(`Tagged you ${when(d.mentioned[me], true)} ago`);
+  if (mine(nid)) badges.push("Your merge request");
+  else if (pushed(nid)) badges.push("You pushed commits");
+  if (me && status === "Reviewed & tested by the community" && D.rtbcBy[nid] === me) badges.push("You set RTBC");
+  // Where it touches your work, under the component; the star marks a top 3 contributor. The path linked to
+  // explorer.html#path until the code explorer was hidden for demos.
+  const where = person?.area(nid);
+  const yourArea = where?.path ? `<div class="sub">${where.expert ? `<span title="You're a top 3 contributor to a file it mentions">★</span> ` : ""}your area:
+    ${esc(short(where.path))}</div>` : "";
+  // Your part in the thread, under the reply count, like drupal.org's count of new comments.
+  let yourReplies = "";
+  if (me && d.author?.toLowerCase() === me) yourReplies = `<div class="sub" title="You commented last">yours last</div>`;
+  else if (me && me in d.commenters) {
+    const what = d.commenters[me] === -1 ? "You reported it" : "You took part";
+    yourReplies = `<div class="sub" title="${what}; ${since(nid)} comment${since(nid) === 1 ? "" : "s"} since yours">${since(nid) ? `<b>${fmt(since(nid))} new</b>` : "0 new"}</div>`;
+  }
+  // On issues that need work, when the merge request's author was last active. Only a fact: shared work on
+  // merge requests is normal in core, so readers judge what it means.
+  const author = d.mrSeen && !mine(nid) && !["Needs review", "Reviewed & tested by the community"].includes(status)
+    ? `<div class="sub" title="When the merge request's author last commented anywhere">MR author active ${when(d.mrSeen, true)} ago</div>` : "";
+  const reasons = [];
+  if (nid in blockerOf) {
+    const [blocker, blockerStatus] = blockerOf[nid];
+    // "[PP-2]" in a title means the issue waits on two others, so one may still be open.
+    const more = /\[PP-([2-9])\]/i.exec(title);
+    reasons.push(`Blocker <a href="https://www.drupal.org/i/${blocker}" target="_blank" rel="noopener">#${blocker}</a> is ${esc(blockerStatus)}`);
+    if (more) reasons.push(`<b>Waits on ${more[1]} issues: check the others</b>`);
+  }
+  const parent = followUpOf(nid);
+  if (parent) reasons.push(`Follow-up to <a href="https://www.drupal.org/i/${parent}" target="_blank" rel="noopener">#${parent}</a>, which you were credited on`);
+  if (d.raisedCritical) reasons.push(`Raised to Critical ${when(d.raisedCritical, true)} ago`);
+  if (d.summaryEdited) reasons.push("Summary edited since tagged");
+  if (nid in D.parentClosed) {
+    const [p, pStatus] = D.parentClosed[nid];
+    reasons.push(`Parent <a href="https://www.drupal.org/i/${p}" target="_blank" rel="noopener">#${p}</a> is ${esc(pStatus)} ·
+      <button type="button" class="link" data-tree="${nid}">${rooted.has(nid) ? "hide" : "show"} the tree</button>`);
+  }
+  if (nid in D.childrenClosed) reasons.push(`All ${D.childrenClosed[nid]} child issues closed`);
+  else if (below(nid).all >= LARGE_TREE) reasons.push(`${fmt(below(nid).open)} of ${fmt(below(nid).all)} issues below are open`);
+  if (d.knocked) reasons.push(`Was RTBC ${when(d.knocked, true)} ago`);
+  // Many rounds of review feedback often mean the issue needs a decision, not another review.
+  if (d.bounces >= 5) reasons.push(`${d.bounces} review rounds`);
+  if (d.blocks) reasons.push(`Blocks ${d.blocks} issue${d.blocks > 1 ? "s" : ""}`);
+  if (d.newcomer) reasons.push("First-year contributor");
+  if (d.humans >= 100) reasons.push("Long thread: may need a decision");
+  const extra = d.needs.length || reasons.length;
+  return `<tbody class="issue${target ? " target" : ""}" style="--status:${colour}">
+    <tr><td class="rank num">${rank}</td>
+      <td class="title"><div class="row" style="--depth:${depth}">${toggle(nid) || (depth ? `<span class="spacer"></span>` : "")}<div><a href="https://www.drupal.org/i/${nid}" target="_blank" rel="noopener">${esc(title)}</a><span class="nid">#${nid}</span>
+        ${badges.length ? `<div class="badges">${badges.map(b => `<span class="badge">${b}</span>`).join("")}</div>` : ""}</div></div></td>
+      <td class="status"><span class="dot" style="background:${colour}"></span>${esc(label)}${d.statusSince ? `<div class="sub">for ${when(d.statusSince, true)}</div>` : ""}</td>
+      <td class="medium">${esc(d.priority || "")}</td><td class="wide">${esc(category)}</td>
+      <td class="medium">${esc(d.component)}${yourArea}</td>
+      <td class="num medium">${fmt(d.humans)}${yourReplies}</td>
+      <td class="medium">${when(changed)}${author}</td><td class="wide">${when(created)}</td></tr>
+    ${extra ? `<tr class="detail"><td class="rank"></td><td colspan="8"><div class="chips">${d.needs.map(t => `<span class="chip need">${esc(t)}</span>`).join("")}
+      ${reasons.map(r => `<span class="chip reason">${r}</span>`).join("")}</div></td></tr>` : ""}</tbody>
+    ${expanded.has(nid) ? childRows(nid, depth + 1, [nid]) : ""}`;
+}
+
+// The issues below one, at any depth, not counting itself: all of them and the open ones.
+const belowCache = new Map();
+function below(nid) {
+  if (!belowCache.has(nid)) {
+    const seen = new Set([nid]), stack = [...(childrenOf.get(nid) || [])];
+    let open = 0;
+    while (stack.length) {
+      const c = stack.pop();
+      if (seen.has(c)) continue;
+      seen.add(c);
+      if (c in D.issues) open++;
+      stack.push(...(childrenOf.get(c) || []));
+    }
+    belowCache.set(nid, { all: seen.size - 1, open });
+  }
+  return belowCache.get(nid);
+}
+
+// An issue and its parents up to the top of its tree, stopping where parent links form a loop.
+function pathUp(nid) {
+  const path = [nid];
+  for (let p = D.treeIssues[nid]?.[2]; p in D.treeIssues && !path.includes(p); p = D.treeIssues[p][2]) path.push(p);
+  return path;
+}
+
+// A listed issue inside its whole tree: the top issue, then the issues below it, opened down to the listed
+// issue, which keeps its full row.
+function treeAround(nid, rank) {
+  const up = pathUp(nid), top = up.at(-1);
+  const around = { focus: nid, rank, onPath: new Set(up) };
+  return compactRow(top, 0, true) + childRows(top, 1, [top], around);
+}
+
+// A button that shows or hides an issue's child issues, or nothing for an issue without any.
+function toggle(nid) {
+  if (!childrenOf.has(nid)) return "";
+  const open = expanded.has(nid), n = childrenOf.get(nid).length;
+  return `<button class="toggle" data-toggle="${nid}" aria-expanded="${open}" title="${open ? "Hide" : "Show"} ${n} child issue${n > 1 ? "s" : ""}"
+    aria-label="${open ? "Hide" : "Show"} the ${n} child issue${n > 1 ? "s" : ""} of #${nid}">${open ? "▾" : "▸"}</button>`;
+}
+
+// The child issues of a parent, oldest first, indented below it, closed ones included, and below each the
+// children of those that are open. path holds the issues above, as a few parent links form loops. Inside a
+// tree shown around a listed issue, the issues above it stay open and it keeps its full row.
+function childRows(nid, depth, path, around) {
+  return childrenOf.get(nid).filter(c => !path.includes(c)).map(c => {
+    if (c === around?.focus) return row(c, around.rank, depth, true);
+    const forced = !!around?.onPath.has(c);
+    return compactRow(c, depth, forced) + (expanded.has(c) || forced ? childRows(c, depth + 1, [...path, c], around) : "");
+  }).join("");
+}
+
+// A row for an issue shown in a tree, open or closed, from trees.json. An issue above the listed one in its
+// tree stays open, with a fixed ▾ rather than a toggle; "hide the tree" closes the whole tree.
+function compactRow(nid, depth, forced) {
+  const [title, status, , created, changed, priority, category, component, comments] = D.treeIssues[nid];
+  const [colour, label] = STATUS[status] || ["#939393", status];
+  const open = forced ? `<span class="spacer" aria-hidden="true">▾</span>` : toggle(nid) || `<span class="spacer"></span>`;
+  return `<tbody class="issue" style="--status:${colour}"><tr><td class="rank"></td>
+    <td class="title"><div class="row" style="--depth:${depth}">${open}<div><a href="https://www.drupal.org/i/${nid}" target="_blank" rel="noopener">${esc(title)}</a><span class="nid">#${nid}</span></div></div></td>
+    <td class="status"><span class="dot" style="background:${colour}"></span>${esc(label)}</td>
+    <td class="medium">${esc(priority || "")}</td><td class="wide">${esc(category || "")}</td>
+    <td class="medium">${esc(component || "")}</td><td class="num medium">${fmt(comments || 0)}</td>
+    <td class="medium">${when(changed)}</td><td class="wide">${when(created)}</td></tr></tbody>`;
+}
+
+const GROUPS = [["first", "Good first tasks"], ["leverage", "High leverage"], ["tidy", "Housekeeping"], ["everything", "Everything"]];
+
+function drawNav() {
+  const active = presetFor();
+  const count = p => {
+    const saved = state;
+    state = { ...p.filters };
+    const n = matching().length;
+    state = saved;
+    return n;
+  };
+  const button = p => `<button type="button" data-preset="${p.id}" aria-current="${p === active}">
+    ${p.status ? `<span class="dot" style="background:${STATUS[p.status][0]}"></span>` : `<span class="nodot"></span>`}
+    ${esc(p.title)}<span class="n">${fmt(count(p))}</span></button>`;
+  const group = id => PRESETS.filter(p => p.group === id && listed(p)).map(button).join("");
+  document.getElementById("nav").innerHTML = `<h2>For you</h2>${person ? group("you")
+    : `<p class="help" style="margin: 0 4px; font-size: 13px">Enter your username above for lists about the code you know.</p>`}
+    ${GROUPS.map(([id, title]) => `<h2>${title}</h2>${group(id)}`).join("")}`;
+}
+
+function drawList() {
+  const box = document.getElementById("list");
+  const preset = presetFor();
+  const { nids, rank, key, asc } = sorted(matching());
+  const pages = Math.max(1, Math.ceil(nids.length / PAGE));
+  page = Math.min(page, pages - 1);
+  const why = preset ? (typeof preset.why === "function" ? preset.why() : preset.why) : "Your own choice of filters.";
+  // Options with their counts among the issues the other filters leave.
+  const select = ([name, label, options, , needsPerson]) => {
+    let opts = options;
+    if (!opts) {
+      const counts = new Map();
+      for (const nid of matching(name)) {
+        const v = name === "status" ? D.issues[nid][1] : name === "category" ? D.issues[nid][2] : detail(nid)[name];
+        for (const one of [v].flat()) if (one) counts.set(one, (counts.get(one) || 0) + 1);
+      }
+      if (name === "priority") counts.set(MAJOR, (counts.get("Critical") || 0) + (counts.get("Major") || 0));
+      opts = [...counts].sort((a, b) => a[0] === MAJOR ? -1 : b[0] === MAJOR ? 1 : a[0] < b[0] ? -1 : 1).map(([v, n]) => [v, `${v} (${fmt(n)})`]);
+      if (state[name] && !counts.has(state[name])) opts.unshift([state[name], `${state[name]} (0)`]);
+    }
+    return `<label>${label}<select data-filter="${name}"${needsPerson && !person ? " disabled" : ""}><option value="">- Any -</option>${opts.map(([v, text]) =>
+      `<option value="${esc(v)}"${state[name] === v ? " selected" : ""}>${esc(text)}</option>`).join("")}</select></label>`;
+  };
+  const th = ([name, label, cls]) => `<th class="${cls}"${key === name ? ` aria-sort="${asc ? "ascending" : "descending"}"` : ""}>
+    <button type="button" data-sort="${name}"${name === "rank" ? ` title="${RANKING}"` : name === "replies" ? ' title="Comments by people, leaving out system messages and bots"' : ""}>${label}</button></th>`;
+  box.innerHTML = `<h2>${esc(preset?.title || "Filtered issues")}<span class="n">${fmt(nids.length)}</span></h2>
+    <p class="why">${why}${person ? "" : " Enter your username to rank issues by the code you know."}</p>
+    <div class="filters">${FILTERS.filter(f => !HIDDEN.has(f[0])).map(select).join("")}
+      ${base && !preset ? `<button type="button" class="plain" data-reset>Reset filters</button>` : ""}
+      <span class="spacer"></span>
+      <!-- Hidden with the issue map until it is ready to demo.
+      <button type="button" class="plain" data-action="map"${nids.length ? "" : " disabled"}>Show ${fmt(nids.length)} on the issue map</button> --></div>
+    ${conditions()}
+    ${nids.length ? `<table class="issues${key === "rank" ? "" : " norank"}"><thead><tr>${COLUMNS.map(th).join("")}</tr></thead>
+      ${nids.slice(page * PAGE, (page + 1) * PAGE).map(nid => rooted.has(nid) ? treeAround(nid, rank.get(nid)) : row(nid, rank.get(nid))).join("")}</table>
+      <div class="pager"><button type="button" class="plain" data-page="${page - 1}"${page ? "" : " disabled"}>‹ previous</button>
+        Displaying ${fmt(page * PAGE + 1)} – ${fmt(Math.min(nids.length, (page + 1) * PAGE))} of ${fmt(nids.length)}
+        <button type="button" class="plain" data-page="${page + 1}"${page < pages - 1 ? "" : " disabled"}>next ›</button></div>`
+      : `<p class="help">No open issues match these filters.</p>`}`;
+}
+
+// The address bar holds the state, so a filtered list can be shared as a link.
+function save() {
+  const params = new URLSearchParams(Object.entries(state).filter(([, v]) => v));
+  history.replaceState(null, "", `#${params}`);
+}
+function load() {
+  const hash = location.hash.slice(1), preset = PRESETS.find(p => p.id === hash);
+  if (preset) return setPreset(preset, false);
+  state = Object.fromEntries(new URLSearchParams(hash));
+  base = presetFor();
+  // Without a username, start on the list meant for newcomers.
+  if (!hash) setPreset(PRESETS.find(p => p.id === (person ? "review" : "novice")), false);
+}
+// The list last chosen, so changed filters can be reset to it.
+let base = null;
+function setPreset(p, draw = true) {
+  base = p;
+  state = { ...p.filters, ...(p.sort ? { sort: p.sort } : {}), ...(p.dir ? { dir: p.dir } : {}) };
+  page = 0;
+  if (draw) redraw();
+}
+function redraw() {
+  save();
+  drawNav();
+  drawList();
+}
+
+document.addEventListener("click", e => {
+  const tree = e.target.closest("[data-tree]");
+  if (tree) {
+    const nid = +tree.dataset.tree;
+    rooted.has(nid) ? rooted.delete(nid) : rooted.add(nid);
+    drawList();
+    document.querySelector(`[data-tree="${nid}"]`)?.focus();
+  }
+  const open = e.target.closest("[data-toggle]");
+  if (open) {
+    const nid = +open.dataset.toggle;
+    expanded.has(nid) ? expanded.delete(nid) : expanded.add(nid);
+    drawList();
+    document.querySelector(`[data-toggle="${nid}"]`)?.focus();
+  }
+  const pick = e.target.closest("[data-preset]");
+  if (pick || e.target.closest("[data-sort]")) chosen = true;
+  if (e.target.closest("[data-reset]")) setPreset(base);
+  if (pick) { setPreset(PRESETS.find(p => p.id === pick.dataset.preset)); document.querySelector("main").scrollTop = 0; }
+  const sort = e.target.closest("[data-sort]");
+  if (sort) {
+    const { key, asc } = sorted([]), name = sort.dataset.sort;
+    const defaultAsc = name === "rank" || TEXT.has(name);
+    const nextAsc = key === name ? !asc : defaultAsc;
+    state.sort = name === "rank" ? "" : name;
+    state.dir = nextAsc === defaultAsc ? "" : nextAsc ? "asc" : "desc";
+    page = 0;
+    redraw();
+  }
+  const clear = e.target.closest("[data-clear]");
+  if (clear) { chosen = true; state[clear.dataset.clear] = ""; page = 0; redraw(); }
+  const to = e.target.closest("[data-page]");
+  if (to && !to.disabled) { page = +to.dataset.page; drawList(); document.querySelector("main").scrollTop = 0; }
+  if (e.target.dataset.action === "map") {
+    localStorage.setItem(SELECTION, JSON.stringify({ label: (presetFor()?.title || "filtered issues").toLowerCase(), nids: matching() }));
+    location.href = "map.html#selection";
+  }
+});
+document.addEventListener("change", e => {
+  if (e.target.dataset.filter) { chosen = true; state[e.target.dataset.filter] = e.target.value; page = 0; redraw(); }
+});
+let timer;
+const input = document.getElementById("user");
+input.addEventListener("input", () => {
+  clearTimeout(timer);
+  timer = setTimeout(() => {
+    try { localStorage.setItem(USER, input.value.trim()); } catch {}
+    const had = !!person;
+    knowPerson(input.value.trim());
+    // A username unlocks the personal lists, so start on the first of them.
+    if (person && !had && !chosen) setPreset(PRESETS.find(p => p.id === "review"), false);
+    redraw();
+  }, 300);
+});
+document.getElementById("who").addEventListener("submit", e => e.preventDefault());
+
+Promise.all(["explorer.json", "start.json", "trees.json"].map(f => fetch(f, { cache: "no-cache" }).then(r => r.json()))).then(([explorer, start, trees]) => {
+  showUpdated(explorer.generated);
+  D = { ...explorer, ...start, treeIssues: trees.issues };
+  for (const [nid, [, , parent]] of Object.entries(trees.issues))
+    if (parent in trees.issues) (childrenOf.get(parent) || childrenOf.set(parent, []).get(parent)).push(+nid);
+  for (const kids of childrenOf.values()) kids.sort((a, b) => D.treeIssues[a][3] - D.treeIssues[b][3]);
+  index(D.tree, "");
+  D.paths.forEach((p, i) => idOf.set(p, i));
+  all = Object.keys(D.issues).map(Number);
+  blockerOf = Object.fromEntries(D.unblocked.map(([nid, blocker, status]) => [nid, [blocker, status]]));
+  try { input.value = localStorage.getItem(USER) || ""; } catch {}
+  knowPerson(input.value.trim());
+  load();
+  redraw();
+}).catch(err => document.getElementById("list").innerHTML =
+  `<p class="help">Could not load explorer.json, start.json and trees.json. Run <code>uv run explore.py PATH_TO_CORE_CLONE</code> and serve this directory over HTTP. (${esc(err)})</p>`);
+</script>
+</body>
+</html>
