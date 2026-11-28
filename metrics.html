@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drupal core issue metrics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sankey@0.14.0/dist/chartjs-chart-sankey.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.4.4/build/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+<link rel="stylesheet" href="site.css">
+<script src="site.js"></script>
+<style>
+  :root {
+    --axis: #c3c2b7;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --axis: #383835;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --series-5: #d55181;
+      --series-6: #008300;
+    }
+  }
+  :root[data-theme="dark"] {
+    --axis: #383835;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .lede { color: var(--text-secondary); margin: 0 0 16px; max-width: 70ch; }
+  .notes {
+    color: var(--text-secondary); font-size: 14px; margin: 0 0 32px; padding: 12px 16px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1);
+  }
+  .notes ul { margin: 4px 0 0; padding-left: 20px; }
+  h2 { font-size: 18px; margin: 40px 0 12px; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  figure {
+    margin: 0; padding: 16px; background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 8px; min-width: 0;
+  }
+  figcaption h3 { font-size: 15px; margin: 0; }
+  figcaption p { color: var(--text-secondary); font-size: 13px; margin: 2px 0 12px; }
+  .chart { position: relative; height: 320px; }
+  details { margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
+  details table { border-collapse: collapse; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  details th, details td { text-align: right; padding: 2px 10px 2px 0; border-bottom: 1px solid var(--grid); }
+  details th:first-child, details td:first-child { text-align: left; }
+  .scroll { max-height: 240px; overflow: auto; }
+  .chart.tall { height: 520px; }
+  .scroll-x { overflow-x: auto; }
+  .key { display: inline-flex; align-items: center; gap: 2px; margin-right: 12px; vertical-align: middle; }
+  .key i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
+  .fame table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .fame th, .fame td { text-align: left; vertical-align: top; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--grid); }
+  .fame th { color: var(--text-secondary); font-weight: 600; }
+  .fame th:last-child, .fame td:last-child { text-align: right; white-space: nowrap; padding-right: 0; }
+  .toggles { display: flex; flex-wrap: wrap; gap: 0 8px; }
+  .note { font-size: 13px; color: var(--text-secondary); margin: 0 0 8px; }
+  .segmented { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<header class="site">
+  <a class="home" href="index.html">Drupal core issues</a>
+  <a href="index.html">Where to help</a>
+  <!-- Hidden until they are ready to demo; the pages are still there.
+  <a href="explorer.html">Code explorer</a>
+  <a href="areas.html">Areas</a>
+  <a href="map.html">Issue map</a>
+  -->
+  <span aria-current="page">Issue metrics</span>
+  <span class="updated" id="updated"></span>
+</header>
+<main>
+  <h1>Drupal core issue metrics</h1>
+  <p class="lede">The Drupal core issue queue over time, from issues and comments crawled from drupal.org. A companion to <a href="https://dbuytaert.github.io/drupal-core-metrics/">Drupal Core Metrics</a>, which charts the code itself. Dashed lines mark major releases. Dotted lines mark the start of the Bug Smash, Needs Review Queue and stale issue cleanup initiatives, from the first use of each one's tag.</p>
+  <div class="notes" id="notes">Loading data…</div>
+
+  <h2>Queue health</h2>
+  <div class="grid">
+    <figure><figcaption><h3>Open issues</h3><p>Issues open at the end of each month, or the issues opened and closed each month. Opened and closed are averaged over each month and the 11 before it, as single months vary too much to show the trend. See the notes above for how the closing date is estimated.</p></figcaption>
+      <div class="chart"><canvas id="open"></canvas></div><details><summary>Show data</summary><div class="scroll" id="open-table"></div></details></figure>
+    <figure><figcaption><h3>Issue years</h3><p>The ages of all open issues added together, at the end of each month, for all issues and for bugs alone. Ten issues open for a year each make ten issue years. It falls when old issues are closed, so it shows backlog cleanup that the open count alone does not. Bugs are issues whose category is Bug report now.</p></figcaption>
+      <div class="chart"><canvas id="issueyears"></canvas></div><details><summary>Show data</summary><div class="scroll" id="issueyears-table"></div></details></figure>
+    <figure><figcaption><h3>How old issues are when they are fixed</h3><p>How long each year's fixed issues had been open when fixed. A high box or whisker means that year's work went into clearing backlog rather than new reports. Switch to Log to see the median, which is squashed near zero on the linear scale.</p></figcaption>
+      <div class="chart"><canvas id="fixage"></canvas></div><details><summary>Show data</summary><div class="scroll" id="fixage-table"></div></details></figure>
+    <figure id="status-time-figure"><figcaption><h3>Where the time goes before a fix</h3><p>Average days a fixed issue spent in each status before it was first fixed, by the year it was fixed or filed. The full bar is the average time from filing to first fix. A few slow issues dominate the averages, so "Without the slowest 10%" leaves out each year's slowest tenth of fixes. Hover over Postponed or Other for what they include.</p></figcaption>
+      <div class="toggles">
+        <div class="segmented" role="group" aria-label="Scale" data-key="mode">
+          <button type="button" data-value="days" aria-pressed="true">Days</button><button type="button" data-value="share" aria-pressed="false">Share of time</button>
+        </div>
+        <div class="segmented" role="group" aria-label="Fixes" data-key="trim">
+          <button type="button" data-value="all" aria-pressed="true">All fixes</button><button type="button" data-value="trimmed" aria-pressed="false">Without the slowest 10%</button>
+        </div>
+        <div class="segmented" role="group" aria-label="Year" data-key="by">
+          <button type="button" data-value="fixed" aria-pressed="true">By year fixed</button><button type="button" data-value="filed" aria-pressed="false">By year filed</button>
+        </div>
+      </div>
+      <p class="note" id="status-time-note" hidden>Recent years look fast only because their slow issues are not fixed yet, so each will grow as its old issues are fixed. "What became of each year's issues" shows how many are still open.</p>
+      <div class="chart"><canvas id="statustime"></canvas></div><details><summary>Show data</summary><div class="scroll" id="statustime-table"></div></details></figure>
+    <figure class="history"><figcaption><h3>How issues change status</h3><p>Issues moving from one status (left) to another (right) since 2011. Each band counts issues, not changes: an issue that went from Needs work to Needs review five times counts once. Closed (fixed) counts as Fixed, as drupal.org closes fixed issues itself two weeks later. "Other" is Postponed, Postponed (maintainer needs more info), Patch (to be ported), and every closed status except Closed (fixed).</p></figcaption>
+      <div class="chart tall"><canvas id="flows"></canvas></div><details><summary>Show data</summary><div class="scroll" id="flows-table"></div></details></figure>
+    <figure><figcaption><h3>What became of each year's issues</h3><p>Issues by the year they were filed, and where they are now: fixed, closed with another status, or still open.</p></figcaption>
+      <div class="chart"><canvas id="fates"></canvas></div><details><summary>Show data</summary><div class="scroll" id="fates-table"></div></details></figure>
+    <figure><figcaption><h3>Issues filed by category</h3><p>Each year's new issues, by the category they were filed with. An issue whose category changed later counts under its first category.</p></figcaption>
+      <div class="chart"><canvas id="categories"></canvas></div><details><summary>Show data</summary><div class="scroll" id="categories-table"></div></details></figure>
+    <figure><figcaption><h3>Open issues by component</h3><p>Each box is a component, sized by its open issues and coloured by their median age: darker is older. <span id="components-key"></span></p></figcaption>
+      <div class="chart tall"><canvas id="components"></canvas></div><details><summary>Show data</summary><div class="scroll" id="components-table"></div></details></figure>
+    <figure><figcaption><h3>Time since the last comment</h3><p id="silence-caption">Open issues by how long ago anyone last commented on them, in months.</p></figcaption>
+      <div class="chart"><canvas id="silence"></canvas></div><details><summary>Show data, by year</summary><div class="scroll" id="silence-table"></div></details></figure>
+    <figure><figcaption><h3>Policy issues</h3><p>Issues with "[policy" in the title, by the year they were filed and the year they were closed.</p></figcaption>
+      <div class="chart"><canvas id="policy"></canvas></div><details><summary>Show data</summary><div class="scroll" id="policy-table"></div></details></figure>
+  </div>
+
+  <h2 class="history">Reviews</h2>
+  <div class="grid history">
+    <figure><figcaption><h3>How reviews end</h3><p>Every time an issue left Needs review that year, by the status it moved to. "Needs work (bot)" is the testbot or needs-review-queue-bot finding that the patch or merge request fails or no longer applies, not a person's review.</p></figcaption>
+      <div class="chart"><canvas id="reviewends"></canvas></div><details><summary>Show data</summary><div class="scroll" id="reviewends-table"></div></details></figure>
+    <figure><figcaption><h3>Time to a review</h3><p>How long issues waited in Needs review before a person set RTBC or Needs work, by the year they did. The bot's knock-backs are left out. On a log scale.</p></figcaption>
+      <div class="chart"><canvas id="reviewwait"></canvas></div><details><summary>Show data</summary><div class="scroll" id="reviewwait-table"></div></details></figure>
+    <figure><figcaption><h3>How RTBC ends</h3><p>Every time an issue left RTBC that year, by the status it moved to. "Committed" includes "Patch (to be ported)", committed to one branch and waiting for another.</p></figcaption>
+      <div class="chart"><canvas id="rtbcends"></canvas></div><details><summary>Show data</summary><div class="scroll" id="rtbcends-table"></div></details></figure>
+    <figure><figcaption><h3>Time from RTBC to commit</h3><p>Total time issues spent in RTBC before each commit, by the year of the commit. If an issue was set to RTBC more than once since it was filed or last committed, all of those spells count. Issues never set to RTBC are left out.</p></figcaption>
+      <div class="chart"><canvas id="commitwait"></canvas></div><details><summary>Show data</summary><div class="scroll" id="commitwait-table"></div></details></figure>
+    <figure><figcaption><h3>People reviewing</h3><p>People who set at least one issue to RTBC that year, by how many times they did.</p></figcaption>
+      <div class="chart"><canvas id="reviewers"></canvas></div><details><summary>Show data</summary><div class="scroll" id="reviewers-table"></div></details></figure>
+  </div>
+
+  <h2 class="history">Fixes and triage</h2>
+  <div class="grid history">
+    <figure><figcaption><h3>Fixes that were reopened</h3><p>Each year's fixes by what happened next: the issue stayed fixed, was reopened to backport the fix to an older branch, or was reopened because the fix was not done. Share shows only the reopenings, as most fixes stay fixed.</p><p>A backport is a move to "Patch (to be ported)", or a reopening whose version moved to an older branch within 30 days. Until about 2016, issues were often reopened for follow-up work instead of a new issue being filed.</p></figcaption>
+      <div class="chart"><canvas id="afterfix"></canvas></div><details><summary>Show data</summary><div class="scroll" id="afterfix-table"></div></details></figure>
+    <figure><figcaption><h3>How long issues stay Critical</h3><p>Each time an issue was filed as Critical or raised to it, by the year that happened, and how long until it was fixed, closed or lowered. "Still Critical" issues are open now.</p></figcaption>
+      <div class="chart"><canvas id="critical"></canvas></div><details><summary>Show data</summary><div class="scroll" id="critical-table"></div></details></figure>
+    <figure><figcaption><h3>How long task tags stay</h3><p id="tags-caption">Median days from adding a task tag, or filing the issue with it, to removing it.</p></figcaption>
+      <div class="chart tall"><canvas id="tags"></canvas></div><details><summary>Show data</summary><div class="scroll" id="tags-table"></div></details></figure>
+    <figure><figcaption><h3>People triaging</h3><p>People who changed an issue's priority, component or category that year, by how many changes they made.</p></figcaption>
+      <div class="chart"><canvas id="triagers"></canvas></div><details><summary>Show data</summary><div class="scroll" id="triagers-table"></div></details></figure>
+  </div>
+
+  <h2>Participants</h2>
+  <p class="lede">A comment session is one person's comments on an issue and its merge requests within an hour.</p>
+  <div class="grid">
+    <figure><figcaption><h3>People commenting per year</h3><p>First-time commenters and those who commented in an earlier year, or everyone by how many comment sessions they had that year. "Half the sessions" is the fewest people whose sessions add up to half of that year's sessions. Merge request commenters are included. Bots and system messages are left out.</p></figcaption>
+      <div class="chart"><canvas id="people"></canvas></div><details><summary>Show data</summary><div class="scroll" id="people-table"></div></details></figure>
+    <figure><figcaption><h3 id="threads-heading">Comment sessions per fixed issue</h3><p id="threads-caption">Comment sessions on each fixed issue, by the year it was fixed.</p></figcaption>
+      <div class="chart"><canvas id="threads"></canvas></div><details><summary>Show data</summary><div class="scroll" id="threads-table"></div></details></figure>
+    <figure><figcaption><h3>Who comes back</h3><p>Of the people who first commented in a year, the share who commented again the next year, and three years later. Years not yet complete are left out.</p></figcaption>
+      <div class="chart"><canvas id="retention"></canvas></div><details><summary>Show data</summary><div class="scroll" id="retention-table"></div></details></figure>
+    <figure><figcaption><h3>Which days people comment</h3><p>Each quarter's comment sessions by the day of the week they started, in UTC, as a share of that quarter's sessions. Darker is busier. An even spread would be 14.3% a day. <span id="days-key"></span></p></figcaption>
+      <div class="chart"><canvas id="days"></canvas></div><details><summary>Show data, by year</summary><div class="scroll" id="days-table"></div></details></figure>
+    <figure><figcaption><h3>When people comment</h3><p>Each quarter's comment sessions by the hour of the day they started, in UTC, as a share of that quarter's sessions. Darker is busier. 12:00 UTC is 13:00 in London, 14:00 in Berlin, 17:30 in India and 08:00 in New York (summer time). <span id="hours-key"></span></p></figcaption>
+      <div class="chart tall"><canvas id="hours"></canvas></div><details><summary>Show data, by year</summary><div class="scroll" id="hours-table"></div></details></figure>
+  </div>
+
+  <h2>Hall of fame</h2>
+  <p class="lede">Test, meeting and release issues are left out.</p>
+  <div class="grid">
+    <figure><figcaption><h3>Most comment sessions</h3><p>The issue with the most comment sessions that year.</p></figcaption>
+      <div class="scroll-x fame" id="fame-comments"></div></figure>
+    <figure><figcaption><h3>Most people</h3><p>The issue with the most different people commenting that year.</p></figcaption>
+      <div class="scroll-x fame" id="fame-people"></div></figure>
+    <figure><figcaption><h3>Oldest issue fixed</h3><p>The fixed issue that had been open longest, by the year it was fixed.</p></figcaption>
+      <div class="scroll-x fame" id="fame-oldest"></div></figure>
+    <figure><figcaption><h3>Most back and forth</h3><p>The issue that people moved between Needs review and Needs work most often that year. The bot's moves are left out.</p></figcaption>
+      <div class="scroll-x fame" id="fame-backforth"></div></figure>
+  </div>
+</main>
+<script>
+const RELEASES = [["8.0", "2015-11"], ["9.0", "2020-06"], ["10.0", "2022-12"], ["11.0", "2024-08"]];
+// The first use of each initiative's tag.
+const INITIATIVES = [["Bug Smash", "2020-06"], ["Review queue", "2022-12"], ["Stale cleanup", "2025-01"]];
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt = n => n == null ? "–" : n.toLocaleString("en");
+
+// Dashed vertical lines at major releases and dotted lines at initiatives, labelled above the chart, with one
+// label for a release and an initiative in the same month, quarter or year; x labels are "YYYY", "YYYY-MM" or "YYYY-Qn".
+const releaseLines = {
+  id: "releases",
+  afterDatasetsDraw(chart) {
+    const x = chart.scales.x, area = chart.chartArea, ctx = chart.ctx;
+    const labels = (chart.data.labels || []).map(String);
+    if (!/^\d{4}(-\d\d|-Q\d)?$/.test(labels[0])) return;
+    const at = month => labels[0].length === 4 ? month.slice(0, 4)
+      : labels[0][5] === "Q" ? `${month.slice(0, 4)}-Q${Math.ceil(month.slice(5) / 3)}` : month;
+    ctx.save();
+    ctx.strokeStyle = css("--text-muted"); ctx.fillStyle = css("--text-muted");
+    ctx.lineWidth = 1; ctx.font = "11px system-ui, sans-serif";
+    const names = new Map();
+    for (const [marks, dash] of [[RELEASES, [4, 4]], [INITIATIVES, [1, 3]]]) {
+      ctx.setLineDash(dash);
+      for (const [name, month] of marks) {
+        const i = labels.indexOf(at(month));
+        if (i < 0) continue;
+        const px = x.getPixelForValue(i);
+        ctx.beginPath(); ctx.moveTo(px, area.top); ctx.lineTo(px, area.bottom); ctx.stroke();
+        names.set(px, [...(names.get(px) || []), name]);
+      }
+    }
+    for (const [px, parts] of names) {
+      // A label that would run off the right edge goes to the left of its line.
+      const text = parts.join(", "), width = ctx.measureText(text).width;
+      ctx.fillText(text, px + 3 + width > chart.width ? px - 3 - width : px + 3, area.top - 4);
+    }
+    ctx.restore();
+  },
+};
+
+// drupal.org's issue status colours, as on index.html. Committed, the bot's Needs work and Other have none
+// there: a darker green, a pale Needs work and a light grey.
+const STATUS_COLOURS = { "Active": "#939393", "Needs review": "#f2b100", "Back to Needs review": "#f2b100",
+  "Needs work": "#f4845f", "Needs work (bot)": "#f9c2ae", "RTBC": "#7ed957", "Committed": "#2e8540",
+  "Postponed": "#4988fe", "Other": "#cfcfcf",
+  "Stayed fixed": "#2e8540", "Reopened for a backport": "#7ed957", "Reopened": "#f4845f",
+  // Closed statuses: Fixed is committed work; the others, grey on drupal.org, get shades from dark to light.
+  "Fixed": "#2e8540", "Duplicate": "#5c5c5c", "Outdated": "#7a7a7a", "Cannot reproduce": "#999999",
+  "Works as designed": "#b8b8b8", "Won't fix": "#d4d4d4", "Still open": "#4988fe" };
+// The status flow chart's statuses, in workflow order, with drupal.org's full name for RTBC.
+const RTBC = "Reviewed & tested by the community";
+const FLOW_COLOURS = { [RTBC]: STATUS_COLOURS.RTBC };
+const FLOW_ORDER = ["Active", "Needs work", "Needs review", RTBC, "Fixed", "Other"];
+const statusColours = labels => labels.map(l => STATUS_COLOURS[l]);
+// Three ordered groups, light to dark blue, for activity bands.
+const ORDERED = ["#9ec5f4", "#3987e5", "#184f95"];
+const pct = v => v.toFixed(1).replace(/\.0$/, "") + "%";
+
+function baseOptions({ stacked = false, percent = false, legend = false, format, min, max, horizontal = false } = {}) {
+  const grid = css("--grid"), muted = css("--text-muted");
+  const show = format || (percent ? pct : fmt);
+  const value = horizontal ? { stacked, beginAtZero: true, grid: { color: grid }, border: { display: false }, ticks: { color: muted, callback: v => show(v) } }
+                           : { stacked, beginAtZero: min == null, min, max: percent ? 100 : max, grid: { color: grid }, border: { display: false }, ticks: { color: muted, callback: v => show(v) } };
+  const category = { stacked, grid: { display: false }, border: { color: css("--axis") }, ticks: { color: muted, maxRotation: 0, autoSkipPadding: 16 } };
+  if (horizontal) category.ticks.autoSkip = false;
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    indexAxis: horizontal ? "y" : "x",
+    layout: { padding: { top: 16 } },
+    interaction: { mode: "index", intersect: false, axis: horizontal ? "y" : "x" },
+    plugins: {
+      legend: { display: legend, align: "start", labels: { color: css("--text-secondary"), boxWidth: 10, boxHeight: 10, useBorderRadius: true, borderRadius: 2 } },
+      tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${show(horizontal ? c.parsed.x : c.parsed.y)}` } },
+    },
+    scales: horizontal ? { x: value, y: category } : { x: category, y: value },
+  };
+}
+
+function line(label, data, color) {
+  return { label, data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0, spanGaps: true };
+}
+function bar(label, data, color) {
+  return { label, data, backgroundColor: color, borderColor: css("--surface-1"), borderWidth: { top: 2 }, borderRadius: 2, borderSkipped: false };
+}
+// A stacked bar per year from {years, labels, counts: {label: [count per year]}}, as shares of each year's
+// total or as counts, with a toggle between them. Labels that are zero in every year are left out. The tooltip
+// gives counts and shares, and the table counts. colors overrides the categorical palette, for ordered groups.
+// lines draws the share view as a line per label in it instead, so small shares are easy to follow over time.
+function shareBars(id, d, noun, colors, lines) {
+  const s = (l, k) => colors ? colors[d.labels.indexOf(l)] : css(`--series-${k + 1}`);
+  const totals = d.years.map((_, i) => d.labels.reduce((t, l) => t + d.counts[l][i], 0));
+  const shown = d.labels.filter(l => d.counts[l].some(v => v > 0));
+  const share = (v, i) => totals[i] ? 100 * v / totals[i] : null;
+  toggle(id, "Scale", [["share", "Share"], ["count", "Count"]], mode => {
+    const asLines = lines && mode === "share";
+    const sets = (asLines ? lines.filter(l => shown.includes(l)) : shown).map((l, k) => Object.assign(asLines ? line(l, d.counts[l].map(share), s(l, k))
+      : bar(l, mode === "share" ? d.counts[l].map(share) : d.counts[l], s(l, k)), { raw: d.counts[l] }));
+    const opts = baseOptions({ stacked: !asLines, percent: mode === "share", legend: true });
+    // Lines need not reach 100%, so the axis fits them.
+    if (asLines) delete opts.scales.y.max;
+    opts.plugins.tooltip.callbacks.label = c => ` ${c.dataset.label}: ${fmt(c.dataset.raw[c.dataIndex])} (${pct(share(c.dataset.raw[c.dataIndex], c.dataIndex) || 0)})`;
+    opts.plugins.tooltip.callbacks.footer = items => `${fmt(totals[items[0].dataIndex])} ${noun}`;
+    Chart.getChart(id)?.destroy();
+    new Chart(document.getElementById(id), { type: asLines ? "line" : "bar", data: { labels: d.years, datasets: sets }, options: opts, plugins: [releaseLines] });
+    table(id + "-table", d.years, [...shown.map(l => ({ label: l, data: d.counts[l] })), { label: "Total", data: totals }]);
+  });
+}
+
+// A duration in days, in minutes, hours, days or years.
+function duration(days) {
+  if (days >= 365) return `${(days / 365.25).toFixed(1)} years`;
+  const [n, unit] = days < 1 / 24 ? [Math.round(days * 1440), "minute"] : days < 1 ? [Math.round(days * 24), "hour"] : [Math.round(days), "day"];
+  return `${fmt(n)} ${unit}${n === 1 ? "" : "s"}`;
+}
+// Box plots of durations per year: spread is [{min, q1, median, q3, max} in days, or null] per year, with the
+// 10th and 90th percentiles as min and max. A log scale, for waits that run from minutes to years, unless linear.
+const SPREAD_TICKS = [[1 / 24, "1 hour"], [1, "1 day"], [7, "1 week"], [30, "1 month"], [365, "1 year"], [3652, "10 years"]];
+function spreadChart(id, years, spread, linear) {
+  const opts = baseOptions({ format: v => `${fmt(v)} days` });
+  // A linear scale past two years steps in whole years.
+  if (linear && Math.max(...spread.map(v => v?.max ?? 0)) > 730) Object.assign(opts.scales.y.ticks,
+    { stepSize: 365.25, callback: v => `${Math.round(v / 365.25)} year${Math.round(v / 365.25) === 1 ? "" : "s"}` });
+  if (!linear) opts.scales.y = { ...opts.scales.y, type: "logarithmic", beginAtZero: false,
+    afterBuildTicks: axis => { axis.ticks = SPREAD_TICKS.filter(([v]) => v >= axis.min && v <= axis.max).map(([value]) => ({ value })); },
+    ticks: { ...opts.scales.y.ticks, callback: v => SPREAD_TICKS.find(([t]) => t === v)?.[1] ?? "" } };
+  opts.plugins.tooltip.callbacks.label = c => { const v = spread[c.dataIndex];
+    return [` Median: ${duration(v.median)}`, ` Middle half: ${duration(v.q1)} to ${duration(v.q3)}`, ` 10th to 90th percentile: ${duration(v.min)} to ${duration(v.max)}`]; };
+  Chart.getChart(id)?.destroy();
+  new Chart(document.getElementById(id), { type: "boxplot", data: { labels: years, datasets: [{ label: "Wait", data: spread,
+    backgroundColor: ORDERED[0], borderColor: ORDERED[2], medianColor: ORDERED[2], borderWidth: 1, outlierRadius: 0, itemRadius: 0,
+    // Whiskers at the given min and max, the 10th and 90th percentiles, not 1.5 times the box.
+    coef: 0 }] },
+    options: opts, plugins: [releaseLines] });
+  const column = (label, key) => ({ label, data: spread.map(v => v ? duration(v[key]) : null) });
+  table(id + "-table", years, [column("10th percentile", "min"), column("25th", "q1"), column("Median", "median"), column("75th", "q3"), column("90th", "max")]);
+}
+
+// Buttons above a chart that redraw it: options are [value, label], and the first is drawn at once.
+function toggle(id, label, options, render) {
+  const group = document.createElement("div");
+  group.className = "segmented";
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", label);
+  group.innerHTML = options.map(([value, text], i) => `<button type="button" data-value="${value}" aria-pressed="${i === 0}">${text}</button>`).join("");
+  group.addEventListener("click", e => {
+    const button = e.target.closest("button");
+    if (!button) return;
+    group.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === button)));
+    render(button.dataset.value);
+  });
+  document.getElementById(id).closest(".chart").before(group);
+  render(options[0][0]);
+}
+
+function draw(id, type, labels, datasets, opts) {
+  Chart.getChart(id)?.destroy();
+  new Chart(document.getElementById(id), { type, data: { labels, datasets }, options: baseOptions(opts), plugins: [releaseLines] });
+  table(id + "-table", labels, datasets);
+}
+// The sequential blue ramp, light to dark, for heatmaps and other ordered shades.
+const RAMP = ["#cde2fb", "#b7d3f6", "#9ec5f4", "#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#256abf", "#1c5cab"];
+
+// A heatmap of shares, a column per quarter and a row per label, darker for higher values, with a key in
+// id-key and each year's shares in the data table. d is {quarters, quarter_share, years, share}.
+function matrix(id, rowLabels, d) {
+  const values = d.quarter_share.flat();
+  const low = Math.min(...values), high = Math.max(...values);
+  const step = v => Math.min(RAMP.length - 1, Math.floor((v - low) / (high - low || 1) * RAMP.length));
+  const opts = baseOptions({});
+  const muted = css("--text-muted");
+  opts.interaction = { mode: "nearest", intersect: true };
+  opts.scales = {
+    x: { ...opts.scales.x, type: "category", labels: d.quarters, offset: true,
+         ticks: { color: muted, maxRotation: 0, autoSkip: false, callback(v) { const l = this.getLabelForValue(v); return l.endsWith("-Q1") ? l.slice(0, 4) : null; } } },
+    // The matrix chart reverses y by default, which would put the first row at the bottom.
+    y: { type: "category", labels: rowLabels, offset: true, reverse: false, grid: { display: false }, border: { display: false }, ticks: { color: muted } },
+  };
+  opts.plugins.tooltip.callbacks = { title: items => `${items[0].raw.x}, ${items[0].raw.y}`, label: c => ` ${pct(c.raw.v)} of that quarter's sessions` };
+  new Chart(document.getElementById(id), { type: "matrix", data: { labels: d.quarters, datasets: [{
+    data: d.quarters.flatMap((q, x) => rowLabels.map((r, y) => ({ x: q, y: r, v: d.quarter_share[x][y] }))),
+    backgroundColor: c => RAMP[step(c.raw?.v ?? low)], borderWidth: 0,
+    width: ({ chart }) => (chart.chartArea || {}).width / d.quarters.length,
+    height: ({ chart }) => (chart.chartArea || {}).height / rowLabels.length }] }, options: opts, plugins: [releaseLines] });
+  document.getElementById(id + "-key").innerHTML = `<span class="key">${pct(low)} ${RAMP.map(c => `<i style="background:${c}"></i>`).join("")} ${pct(high)}</span>`;
+  table(id + "-table", d.years, rowLabels.map((label, k) => ({ label, data: d.share.map(row => row[k] == null ? null : pct(row[k])) })));
+}
+
+function table(id, labels, datasets) {
+  const head = `<tr><th></th>${datasets.map(d => `<th>${d.label}</th>`).join("")}</tr>`;
+  const rows = labels.map((l, i) => `<tr><td>${l}</td>${datasets.map(d => `<td>${fmt(d.raw ? d.raw[i] : d.data[i])}</td>`).join("")}</tr>`);
+  document.getElementById(id).innerHTML = `<table>${head}${rows.join("")}</table>`;
+}
+
+fetch("metrics.json", { cache: "no-cache" }).then(r => r.json()).then(m => {
+  showUpdated(m.generated);
+  const s = i => css(`--series-${i}`);
+  document.getElementById("notes").innerHTML = `
+    <ul>
+      <li>${fmt(m.issues)} core issues filed against Drupal 8 or later. Issues still filed against Drupal 7 or earlier are not included, so the charts start in 2011.</li>
+      <li>${m.current_year} is a partial year.</li>
+      <li>Comments are counted in sessions. A session is one person's comments on an issue and its merge requests, from their first comment until an hour later. A reviewer who leaves several notes on merge request lines and then sets the issue to Needs work counts once, as one review on a patch did.</li>
+      <li>Box plots show the median as the line in each box, the middle half of values as the box, and the 10th to 90th percentiles as the whiskers.</li>
+      <li>Status history comes from the field changes listed on each issue's page.</li>
+      <li>A closed issue's closing date is the earlier of its last status change and its last comment. drupal.org changed the status of over 9,600 issues at once in July 2014, long after they went quiet, so the status change alone would be wrong for those.</li>
+    </ul>`;
+
+  const b = m.backlog;
+  // The average of each month and the 11 before it, from the 12th month on.
+  const yearly = v => v.map((_, i) => i < 11 ? null : Math.round(v.slice(i - 11, i + 1).reduce((t, n) => t + n, 0) / 12));
+  toggle("open", "Measure", [["open", "Open issues"], ["flow", "Opened and closed"]], key => key === "open"
+    ? draw("open", "line", b.months, [line("Open issues", b.open, s(1))])
+    : draw("open", "line", b.months, [line("Opened", yearly(b.opened), s(1)), line("Closed", yearly(b.closed), s(2))], { legend: true }));
+
+  const iy = m.issue_years;
+  draw("issueyears", "line", iy.months, [line("All open issues", iy.all, s(1)), line("Open bugs", iy.bugs, s(2))],
+    { legend: true, format: v => fmt(Math.round(v)) });
+  shareBars("categories", m.categories, "issues filed");
+  draw("policy", "bar", m.policy.years, [bar("Filed", m.policy.opened, s(1)), bar("Closed", m.policy.closed, s(2))], { legend: true });
+
+  toggle("fixage", "Scale", [["linear", "Linear"], ["log", "Log"]], scale => spreadChart("fixage", m.fix_age.years, m.fix_age.spread, scale === "linear"));
+  shareBars("fates", m.fates, "issues filed", statusColours(m.fates.labels));
+  // One shade per year of median age, as a few tiny components at 0 and 16 years would stretch a scaled range.
+  const cs = m.components, shade = c => Math.min(RAMP.length - 1, Math.floor(c.median_years));
+  const yearsOld = v => `${v} year${v === 1 ? "" : "s"}`;
+  document.getElementById("components-key").innerHTML = `<span class="key">Under 1 year ${RAMP.map(c => `<i style="background:${c}"></i>`).join("")} ${RAMP.length - 1} years or more</span>`;
+  new Chart(document.getElementById("components"), { type: "treemap", data: { datasets: [{
+    tree: cs, key: "open", spacing: 1, borderWidth: 0,
+    backgroundColor: c => c.type === "data" ? RAMP[shade(c.raw._data)] : "transparent",
+    labels: { display: true, overflow: "hidden", font: { size: 11 }, formatter: c => [c.raw._data.component, fmt(c.raw.v)],
+      color: c => c.type === "data" && shade(c.raw._data) >= 6 ? "#fff" : "#0b0b0b" } }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false },
+      tooltip: { callbacks: { title: items => items[0].raw._data.component,
+        label: c => ` ${fmt(c.raw.v)} open, median age ${yearsOld(c.raw._data.median_years)}` } } } } });
+  table("components-table", cs.map(c => c.component), [{ label: "Open issues", data: cs.map(c => c.open) },
+    { label: "Median age (years)", data: cs.map(c => c.median_years) }]);
+
+  const p = m.participants;
+  toggle("people", "Group", [["returning", "First-time and returning"], ["bands", "By sessions that year"], ["half", "Half the sessions"]],
+    group => group === "half"
+      ? draw("people", "line", m.concentration.years, [line("People with half the sessions", m.concentration.people_for_half, s(1))])
+      : draw("people", "bar", p.years, group === "bands" ? p.bands.labels.map((l, k) => bar(l, p.bands.counts[l], ORDERED[k]))
+        : [bar("Returning", p.returning, s(1)), bar("First-time", p.first_time, s(2))], { stacked: true, legend: true }));
+  const th = m.threads;
+  document.getElementById("threads-caption").textContent = `Comment sessions on each fixed issue and its merge requests, by the year it was fixed: the median, or the share of fixed issues with ${th.long} or more. Bots, system messages, credit notices, and test and meeting issues are left out.`;
+  toggle("threads", "Measure", [["median", "Median sessions"], ["long_share", `${th.long} or more sessions`]], key =>
+    draw("threads", "line", th.years, [line(key === "median" ? "Median sessions" : `${th.long} or more sessions`, th[key], s(1))],
+      { format: key === "median" ? fmt : pct }));
+
+  // Written from the change history that changes.py stores; left out without it.
+  const sh = m.status_history;
+  if (sh) {
+    const flows = sh.flows, key = (side, s) => `${side}:${s}`;
+    const nodes = flows.flatMap(([old, now]) => [key("from", old), key("to", now)]);
+    const status = node => node.slice(node.indexOf(":") + 1);
+    const colour = node => FLOW_COLOURS[status(node)] ?? STATUS_COLOURS[status(node)] ?? STATUS_COLOURS.Other;
+    const short = s => s === RTBC ? "RTBC" : s;
+    new Chart(document.getElementById("flows"), { type: "sankey", data: { datasets: [{
+      data: flows.map(([old, now, n]) => ({ from: key("from", old), to: key("to", now), flow: n })),
+      labels: Object.fromEntries(nodes.map(n => [n, short(status(n))])),
+      column: Object.fromEntries(nodes.map(n => [n, n.startsWith("from:") ? 0 : 1])),
+      priority: Object.fromEntries(nodes.map(n => [n, FLOW_ORDER.indexOf(status(n))])),
+      colorFrom: c => colour(c.dataset.data[c.dataIndex].from), colorTo: c => colour(c.dataset.data[c.dataIndex].to),
+      colorMode: "gradient", borderWidth: 0, color: css("--text-primary"), font: { size: 12 } }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false },
+        tooltip: { callbacks: { title: () => "", label: c => { const d = c.raw; return ` ${short(status(d.from))} → ${short(status(d.to))}: ${fmt(d.flow)} issues`; } } } } } });
+    table("flows-table", flows.map(([old, now]) => `${short(old)} → ${short(now)}`), [{ label: "Issues", data: flows.map(r => r[2]) }]);
+    shareBars("reviewends", sh.review_ends, "moves out of Needs review", statusColours(sh.review_ends.labels), sh.review_ends.labels);
+    shareBars("rtbcends", sh.rtbc_ends, "moves out of RTBC", statusColours(sh.rtbc_ends.labels), sh.rtbc_ends.labels);
+    spreadChart("reviewwait", sh.review_wait.years, sh.review_wait.spread);
+    spreadChart("commitwait", sh.commit_wait.years, sh.commit_wait.spread, true);
+    const rv = sh.reviewers;
+    draw("reviewers", "bar", rv.years, rv.labels.map((l, k) => bar(l, rv.counts[l], ORDERED[k])), { stacked: true, legend: true });
+    const tr = sh.triagers;
+    draw("triagers", "bar", tr.years, tr.labels.map((l, k) => bar(l, tr.counts[l], ORDERED[k])), { stacked: true, legend: true });
+    // Stayed fixed is most of each year, so the share view shows only the reopenings.
+    shareBars("afterfix", sh.after_fix, "fixes", statusColours(sh.after_fix.labels), ["Reopened for a backport", "Reopened"]);
+    // Light for quick to dark for slow; the darkest is still Critical.
+    shareBars("critical", sh.critical, "times an issue became Critical", ["#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]);
+    const tg = sh.tags.tags;
+    document.getElementById("tags-caption").textContent = `Median days from adding a task tag, or filing the issue with it, to removing it, for tags added since ${sh.tags.since} and removed at least 50 times. Tags never removed are left out.`;
+    new Chart(document.getElementById("tags"), { type: "bar",
+      data: { labels: tg.map(t => t.tag), datasets: [bar("Median days", tg.map(t => t.median), s(1))] },
+      options: baseOptions({ horizontal: true, format: v => `${fmt(v)} days` }) });
+    table("tags-table", tg.map(t => t.tag), [{ label: "Median days", data: tg.map(t => t.median) }, { label: "Times removed", data: tg.map(t => t.removed) }]);
+  } else {
+    document.querySelectorAll(".history").forEach(e => e.hidden = true);
+  }
+  const st = sh?.status_time;
+  if (st) {
+    const days = v => fmt(Math.round(v)) + " days";
+    const STATUS_TIME_NOTES = { Postponed: "   Includes Postponed (maintainer needs more info)",
+      Other: "   Mostly Patch (to be ported), and time closed before a reopen" };
+    const view = { mode: "days", trim: "all", by: "fixed" };
+    let chart;
+    const drawStatusTime = () => {
+      const v = st.views[view.by][view.trim], share = view.mode === "share";
+      const totals = v.years.map((_, i) => st.statuses.reduce((t, label) => t + (v.mean[label][i] || 0), 0));
+      const sets = st.statuses.map(label => Object.assign(bar(label, share
+        ? v.mean[label].map((d, i) => d == null || !totals[i] ? null : 100 * d / totals[i]) : v.mean[label], STATUS_COLOURS[label]),
+        { raw: v.mean[label] }));
+      const opts = baseOptions({ stacked: true, legend: true, percent: share, format: share ? pct : days });
+      // The tooltip always gives days as well, so the share view does not hide the scale.
+      opts.plugins.tooltip.callbacks.label = c => ` ${c.dataset.label}: ${days(c.dataset.raw[c.dataIndex])}${share ? ` (${pct(c.parsed.y)})` : ""}`;
+      opts.plugins.tooltip.callbacks.afterLabel = c => STATUS_TIME_NOTES[c.dataset.label];
+      opts.plugins.tooltip.callbacks.footer = items => `Total: ${days(totals[items[0].dataIndex])}, ${fmt(v.fixed[items[0].dataIndex])} fixed issues`;
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById("statustime"), { type: "bar", data: { labels: v.years, datasets: sets },
+        options: opts, plugins: [releaseLines] });
+      document.getElementById("status-time-note").hidden = view.by !== "filed";
+      table("statustime-table", v.years, [...st.statuses.map(label => ({ label, data: v.mean[label] })),
+        { label: "Total", data: totals.map(t => Math.round(t)) }, { label: "Fixed issues", data: v.fixed }]);
+    };
+    drawStatusTime();
+    document.querySelectorAll("#status-time-figure .segmented button").forEach(button => button.addEventListener("click", () => {
+      const group = button.parentElement;
+      group.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === button)));
+      view[group.dataset.key] = button.dataset.value;
+      drawStatusTime();
+    }));
+  } else {
+    document.getElementById("status-time-figure").hidden = true;
+  }
+
+  const sm = m.silence_months;
+  const open = sm.reduce((t, n) => t + n, 0);
+  let seen = 0;
+  const median = sm.findIndex(n => (seen += n) * 2 >= open);
+  const age = months => months < 12 ? `${months} month${months === 1 ? "" : "s"}` : `${(months / 12).toFixed(1)} years`;
+  document.getElementById("silence-caption").textContent =
+    `Open issues by how long ago anyone last commented on them, in months. Half of the ${fmt(open)} open issues have had no comment for ${age(median)} or more.`;
+  const so = baseOptions({ format: fmt });
+  so.scales.x = { type: "linear", min: 0, max: Math.ceil(sm.length / 12), grid: { display: false }, border: { color: css("--axis") },
+    ticks: { color: css("--text-muted"), stepSize: 1, maxRotation: 0, callback: v => v === 0 ? "0" : `${v} yr` } };
+  so.interaction = { mode: "nearest", axis: "x", intersect: false };
+  so.plugins.tooltip.callbacks.title = items => `${age(items[0].parsed.x * 12)} since the last comment`;
+  so.plugins.tooltip.callbacks.label = c => ` ${fmt(c.parsed.y)} open issues`;
+  new Chart(document.getElementById("silence"), { type: "line", options: so, data: { datasets: [Object.assign(
+    line("Open issues", sm.map((n, i) => ({ x: (i + 0.5) / 12, y: n })), s(1)),
+    { tension: 0.4, fill: "origin", backgroundColor: css("--series-1") + "26" })] } });
+  const years = Array.from({ length: Math.ceil(sm.length / 12) }, (_, y) => sm.slice(y * 12, y * 12 + 12).reduce((t, n) => t + n, 0));
+  table("silence-table", years.map((_, y) => `${y}–${y + 1} years`), [{ label: "Open issues", data: years }]);
+
+  const cohorts = Object.keys(m.retention).sort();
+  // A cohort's share k years on, unless that year is the current, partial one.
+  const later = k => cohorts.map(c => +c + k < m.current_year ? m.retention[c][k - 1] ?? null : null);
+  draw("retention", "line", cohorts, [line("The next year", later(1), s(1)), line("Three years later", later(3), s(2))],
+    { legend: true, format: pct });
+
+  matrix("days", ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], m.comment_days);
+  matrix("hours", Array.from({ length: 24 }, (_, h) => String(h).padStart(2, "0") + ":00"), m.comment_hours);
+
+  const link = i => i ? `<a href="https://www.drupal.org/i/${i.nid}">#${i.nid}</a> ${i.title.replace(/</g, "&lt;")}` : "–";
+  const fame = (id, key, heading, value) => {
+    document.getElementById(id).innerHTML = `<table><tr><th>Year</th><th>Issue</th><th>${heading}</th></tr>${
+      m.hall_of_fame.filter(h => h[key]).map(h =>
+        `<tr><td>${h.year}</td><td>${link(h[key])}</td><td>${value(h[key])}</td></tr>`).join("")}</table>`;
+  };
+  fame("fame-comments", "busiest", "Sessions", i => fmt(i.sessions));
+  fame("fame-people", "most_people", "People", i => fmt(i.people));
+  fame("fame-oldest", "oldest_fixed", "Years open", i => (i.days / 365.25).toFixed(1));
+  fame("fame-backforth", "back_and_forth", "Moves", i => fmt(i.rounds));
+}).catch(err => {
+  document.getElementById("notes").textContent = "Could not load metrics.json. Run 'uv run metrics.py', then serve this folder with 'python3 -m http.server'. " + err;
+});
+</script>
+</body>
+</html>
